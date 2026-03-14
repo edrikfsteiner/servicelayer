@@ -1,0 +1,33 @@
+spring:
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.0
+
+app:
+  datasource:
+    origem:
+      jdbc-url: jdbc:mysql://localhost:3306/legado_db
+      username: root
+      password: password
+      driver-class-name: com.mysql.cj.jdbc.Driver
+
+    destino:
+      jdbc-url: jdbc:postgresql://localhost:5432/novo_db
+      username: postgres
+      password: password
+      driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+      show-sql: false
