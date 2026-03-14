@@ -12,7 +12,7 @@
 	<artifactId>servicelayer</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>servicelayer</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Projeto para migração dados assíncrona massiva</description>
 	<url/>
 	<licenses>
 		<license/>
