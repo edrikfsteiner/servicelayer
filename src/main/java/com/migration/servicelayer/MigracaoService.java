@@ -23,7 +23,7 @@ public class MigracaoService {
 
         // 2. Envia cada um para a fila do RabbitMQ
         clientes.forEach(cliente -> {
-            rabbitTemplate.convertAndSend("migracao.exchange", "migracao.routing.key", cliente);
+            rabbitTemplate.convertAndSend("migration.exchange", "migration.routing.key", cliente);
             System.out.println("Enviado para a fila: " + cliente.getNmCompleto());
         });
     }

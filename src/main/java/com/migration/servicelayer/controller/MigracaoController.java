@@ -1,7 +1,9 @@
 package com.migration.servicelayer.controller;
 
+import com.migration.servicelayer.MigracaoService;
 import com.migration.servicelayer.dto.MapeamentoRequest;
 import com.migration.servicelayer.service.AiMappingService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,9 +13,18 @@ public class MigracaoController {
 
     private final AiMappingService aiMappingService;
 
+    @Autowired
+    private MigracaoService migracaoService;
+
     // Injeção de dependência do serviço de IA que criámos anteriormente
     public MigracaoController(AiMappingService aiMappingService) {
         this.aiMappingService = aiMappingService;
+    }
+
+    @PostMapping("/iniciar")
+    public ResponseEntity<String> iniciar() {
+        migracaoService.iniciarMigracaoEmMassa();
+        return ResponseEntity.ok("Processo de migração enviado para a fila!");
     }
 
     @PostMapping("/mapear")
