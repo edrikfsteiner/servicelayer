@@ -1,4 +1,4 @@
-package com.migration.servicelayer.repository;
+package com.migration.servicelayer.repository.origin;
 import com.migration.servicelayer.model.origin.ClienteLegado;
 import org.springframework.data.jpa.repository.JpaRepository;
 

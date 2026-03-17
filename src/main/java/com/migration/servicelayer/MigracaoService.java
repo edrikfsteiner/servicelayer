@@ -1,7 +1,7 @@
 package com.migration.servicelayer;
 
 import com.migration.servicelayer.model.origin.ClienteLegado;
-import com.migration.servicelayer.repository.ClienteLegadoRepository;
+import com.migration.servicelayer.repository.origin.ClienteLegadoRepository;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import java.util.List;

@@ -21,7 +21,7 @@ import java.util.HashMap;
 @EnableJpaRepositories(
         entityManagerFactoryRef = "targetEntityManagerFactory",
         transactionManagerRef = "targetTransactionManager",
-        basePackages = {"com.migration.servicelayer.target.repository"}
+        basePackages = {"com.migration.servicelayer.repository.target"}
 )
 public class TargetDbConfig {
 
@@ -37,7 +37,7 @@ public class TargetDbConfig {
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(@Qualifier("targetDataSource") DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean entityManagerFactory = new LocalContainerEntityManagerFactoryBean();
         entityManagerFactory.setDataSource(dataSource);
-        entityManagerFactory.setPackagesToScan("com.migration.servicelayer.target.entity");
+        entityManagerFactory.setPackagesToScan("com.migration.servicelayer.model.target");
         entityManagerFactory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
 
         HashMap<String, Object> properties = new HashMap<>();

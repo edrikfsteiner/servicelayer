@@ -2,7 +2,7 @@ package com.migration.servicelayer;
 
 import com.migration.servicelayer.model.origin.ClienteLegado;
 import com.migration.servicelayer.model.target.UserNovo;
-import com.migration.servicelayer.repository.UserNovoRepository;
+import com.migration.servicelayer.repository.target.UserNovoRepository;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
