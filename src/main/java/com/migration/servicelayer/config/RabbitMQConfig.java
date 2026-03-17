@@ -13,11 +13,11 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String EXCHANGE_NAME = "migracao.exchange";
-    public static final String MAIN_QUEUE = "migracao.dados.queue";
-    public static final String DLQ_QUEUE = "migracao.dados.dlq";
-    public static final String ROUTING_MAIN_KEY = "migracao.routing.key";
-    public static final String ROUTING_KEY_DLQ = "migracao.dlq.routing.key";
+    private static final String EXCHANGE_NAME = "migration.exchange";
+    private static final String MAIN_QUEUE = "migration.data.queue";
+    private static final String DLQ_QUEUE = "migration.data.dlq";
+    private static final String ROUTING_MAIN_KEY = "migration.routing.key";
+    private static final String ROUTING_KEY_DLQ = "migration.dlq.routing.key";
 
     @Bean
     public Queue dlq() {
