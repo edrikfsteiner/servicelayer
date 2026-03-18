@@ -1,4 +1,4 @@
-package com.migration.servicelayer.model.target;
+package com.migration.servicelayer.target.model;
 
 import jakarta.persistence.*;
 import lombok.*;

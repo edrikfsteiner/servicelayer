@@ -1,5 +1,5 @@
-package com.migration.servicelayer.repository.target;
-import com.migration.servicelayer.model.target.UserNovo;
+package com.migration.servicelayer.target.repository;
+import com.migration.servicelayer.target.model.UserNovo;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

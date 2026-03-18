@@ -4,16 +4,16 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
 @Service
-public class AiMappingService {
+public class AIMappingService {
 
     private final ChatClient chatClient;
 
-    public AiMappingService(ChatClient.Builder chatClientBuilder) {
+    public AIMappingService(ChatClient.Builder chatClientBuilder) {
         this.chatClient = chatClientBuilder.build();
     }
 
-    public String gerarMapeamentoDePara(String schemaOrigem, String schemaDestino) {
-        String mensagemSistema = """
+    public String generateMapping(String originSchema, String targetSchema) {
+        String systemMessage = """
             Você é um engenheiro de dados senior especialista em migração de sistemas legados.
             Sua função é analisar a estrutura de dados de ORIGEM (sistema legado) e a estrutura de DESTINO (sistema moderno),\s
             e criar um mapeamento 'de-para' exato.
@@ -25,17 +25,17 @@ public class AiMappingService {
             4. As chaves do JSON devem ser os campos de DESTINO e os valores devem ser os campos de ORIGEM correspondentes.
            \s""";
 
-        String mensagemUtilizador = String.format("""
+        String userMessage = String.format("""
             Schema de ORIGEM:
             %s
             
             Schema de DESTINO:
             %s
-            """, schemaOrigem, schemaDestino);
+            """, originSchema, targetSchema);
 
         return this.chatClient.prompt()
-                .system(mensagemSistema)
-                .user(mensagemUtilizador)
+                .system(systemMessage)
+                .user(userMessage)
                 .call()
                 .content();
     }

@@ -1,11 +1,14 @@
-package com.migration.servicelayer.model.origin;
+package com.migration.servicelayer.origin.model;
 
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "TB_CLIENTES") // Nome da tabela no MySQL
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@Table(name = "TB_CLIENTES")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class ClienteLegado {
 
     @Id
@@ -17,8 +20,8 @@ public class ClienteLegado {
     private String nmCompleto;
 
     @Column(name = "DT_NASCIMENTO")
-    private String dtNascimento; // No legado costuma ser String
+    private String dtNascimento;
 
     @Column(name = "STS_ATIVO")
-    private Integer stsAtivo; // 0 ou 1
+    private Integer stsAtivo;
 }

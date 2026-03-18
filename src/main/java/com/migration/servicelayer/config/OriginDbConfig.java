@@ -20,7 +20,7 @@ import java.util.HashMap;
 @EnableJpaRepositories(
         entityManagerFactoryRef = "originEntityManagerFactory",
         transactionManagerRef = "originTransactionManager",
-        basePackages = {"com.migration.servicelayer.repository.origin"}
+        basePackages = {"com.migration.servicelayer.origin.repository"}
 )
 public class OriginDbConfig {
 
@@ -34,7 +34,7 @@ public class OriginDbConfig {
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(@Qualifier("originDataSource") DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean entityManagerFactory = new LocalContainerEntityManagerFactoryBean();
         entityManagerFactory.setDataSource(dataSource);
-        entityManagerFactory.setPackagesToScan("com.migration.servicelayer.model.origin");
+        entityManagerFactory.setPackagesToScan("com.migration.servicelayer.origin.model");
         entityManagerFactory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
 
         HashMap<String, Object> properties = new HashMap<>();
