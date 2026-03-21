@@ -2,11 +2,11 @@ package com.migration.servicelayer.util;
 
 import java.util.regex.Pattern;
 
-public final class TableNameValidator {
+public final class NameValidator {
 
     private static final Pattern VALID_IDENTIFIER = Pattern.compile("^[a-zA-Z_][a-zA-Z0-9_]{0,127}$");
 
-    private TableNameValidator() {}
+    private NameValidator() {}
 
     public static void validate(String identifier) {
         if (identifier == null || !VALID_IDENTIFIER.matcher(identifier).matches()) {

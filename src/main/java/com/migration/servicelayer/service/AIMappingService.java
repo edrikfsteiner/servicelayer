@@ -24,7 +24,7 @@ public class AIMappingService {
             1. Devolve APENAS um objeto JSON válido.
             2. Não inclua texto explicativo antes ou depois do JSON.
             3. Não inclua blocos de formatação Markdown (como ```json).
-            4. As chaves do JSON devem ser os campos de DESTINO e os valores devem ser os campos de ORIGEM correspondentes.
+            4. As chaves do JSON devem ser as colunas de DESTINO (sem mencionar a tabela) e os valores devem ser as colunas de ORIGEM correspondentes (sem mencionar a tabela).
             \s""";
 
         String userMessage = String.format("""

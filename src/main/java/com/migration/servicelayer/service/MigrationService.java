@@ -1,6 +1,6 @@
 package com.migration.servicelayer.service;
 
-import com.migration.servicelayer.util.TableNameValidator;
+import com.migration.servicelayer.util.NameValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,8 +29,8 @@ public class MigrationService {
     }
 
     public String startMassMigration(String originTable, String targetTable) {
-        TableNameValidator.validate(originTable);
-        TableNameValidator.validate(targetTable);
+        NameValidator.validate(originTable);
+        NameValidator.validate(targetTable);
 
         List<Map<String, Object>> originData = originJdbcTemplate.queryForList("SELECT * FROM " + originTable);
 

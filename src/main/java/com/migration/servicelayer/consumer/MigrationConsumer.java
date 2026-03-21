@@ -2,7 +2,7 @@ package com.migration.servicelayer.consumer;
 
 import com.migration.servicelayer.service.MappingStore;
 import com.migration.servicelayer.service.ProtocolService;
-import com.migration.servicelayer.util.TableNameValidator;
+import com.migration.servicelayer.util.NameValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -41,7 +41,7 @@ public class MigrationConsumer {
             @Header(value = "reprocessed", required = false) boolean reprocessed
     ) {
         try {
-            TableNameValidator.validate(targetTable);
+            NameValidator.validate(targetTable);
 
             Map<String, String> mapping = mappingStore.getMapping(targetTable);
             if (mapping == null) {
@@ -50,7 +50,7 @@ public class MigrationConsumer {
 
             Map<String, Object> targetPayload = new HashMap<>();
             mapping.forEach((targetColumn, originColumn) -> {
-                TableNameValidator.validate(targetColumn);
+                NameValidator.validate(targetColumn);
                 if (originPayload.containsKey(originColumn)) {
                     targetPayload.put(targetColumn, originPayload.get(originColumn));
                 }

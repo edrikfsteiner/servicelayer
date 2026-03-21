@@ -141,11 +141,11 @@ Resposta esperada:
 
 ```json
 {
-  "customers.id": "clientes.id",
-  "customers.full_name": "clientes.nome",
-  "customers.email": "clientes.email",
-  "customers.cpf": "clientes.documento",
-  "customers.city": "clientes.cidade"
+  "id": "id",
+  "full_name": "nome",
+  "email": "email",
+  "cpf": "documento",
+  "city": "cidade"
 }
 ```
 
@@ -223,6 +223,28 @@ curl -X POST http://localhost:8080/api/dlq/reprocess
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | RabbitMQ Management | http://localhost:15672 |
 | Actuator | http://localhost:8080/actuator |
+
+---
+
+## 9. Troubleshooting
+### Limpar filas do RabbitMQ
+
+Se mensagens antigas ficaram presas nas filas, limpe-as antes de executar uma nova migração:
+
+```bash
+curl -u admin:admin123 -X DELETE http://localhost:15672/api/queues/%2F/migration.data.queue/contents
+curl -u admin:admin123 -X DELETE http://localhost:15672/api/queues/%2F/migration.data.dlq/contents
+```
+
+### Limpar protocolos antigos do PostgreSQL
+```bash
+docker exec -it target-db psql -U postgres -d target_db -c "DELETE * FROM migration_protocol;"
+```
+
+### Limpar dados migrados para re-testar
+```bash
+docker exec -it target-db psql -U postgres -d target_db -c "TRUNCATE customers;"
+```
 
 ---
 
