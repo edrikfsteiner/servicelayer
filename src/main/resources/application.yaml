@@ -1,0 +1,39 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin123
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      base-url: https://models.inference.ai.azure.com
+      chat:
+        completions-path: /chat/completions
+        options:
+          model: gpt-4o-mini
+          temperature: 0.0
+
+app:
+  datasource:
+    origin:
+      jdbc-url: jdbc:mysql://localhost:3306/origin_db
+      username: root
+      password: root
+      driver-class-name: com.mysql.cj.jdbc.Driver
+
+    target:
+      jdbc-url: jdbc:postgresql://localhost:5432/target_db
+      username: postgres
+      password: password
+      driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+      show-sql: false
