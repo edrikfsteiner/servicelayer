@@ -141,10 +141,11 @@ Resposta esperada:
 
 ```json
 {
-  "nome": "full_name",
-  "email": "email",
-  "documento": "cpf",
-  "cidade": "city"
+  "customers.id": "clientes.id",
+  "customers.full_name": "clientes.nome",
+  "customers.email": "clientes.email",
+  "customers.cpf": "clientes.documento",
+  "customers.city": "clientes.cidade"
 }
 ```
 
@@ -163,8 +164,8 @@ Resposta:
 
 ```json
 {
-  "protocolId": "a1b2c3d4-...",
-  "message": "Migração iniciada"
+  "message": "Migração iniciada de clientes para customers",
+  "protocolId": "e035cfe4-6638-41aa-8e4d-b3e50a9473c7"
 }
 ```
 

@@ -20,10 +20,7 @@ public class MappingStore {
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
 
-    public MappingStore(
-            @Qualifier("targetJdbcTemplate") NamedParameterJdbcTemplate jdbc,
-            ObjectMapper objectMapper
-    ) {
+    public MappingStore(@Qualifier("targetJdbcTemplate") NamedParameterJdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
     }
@@ -36,7 +33,7 @@ public class MappingStore {
                     mapping_json TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-                """);
+        """);
         loadAll();
     }
 
@@ -50,7 +47,8 @@ public class MappingStore {
                     """,
                     new MapSqlParameterSource()
                             .addValue("targetTable", targetTable)
-                            .addValue("json", json));
+                            .addValue("json", json)
+            );
             cache.put(targetTable, mapping);
             log.info("Contrato salvo para tabela: {}", targetTable);
         } catch (Exception e) {
@@ -63,11 +61,12 @@ public class MappingStore {
     }
 
     private void loadAll() {
-        jdbc.query("SELECT target_table, mapping_json FROM mapping_contract", (rs, rowNum) -> {
+        jdbc.query("SELECT target_table, mapping_json FROM mapping_contract", (rs, _) -> {
             try {
                 String table = rs.getString("target_table");
                 Map<String, String> mapping = objectMapper.readValue(
-                        rs.getString("mapping_json"), new TypeReference<>() {});
+                        rs.getString("mapping_json"), new TypeReference<>() {}
+                );
                 cache.put(table, mapping);
             } catch (Exception e) {
                 log.error("Erro ao carregar contrato do banco: {}", e.getMessage());

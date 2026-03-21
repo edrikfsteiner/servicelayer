@@ -38,9 +38,8 @@ public class MigrationConsumer {
             Map<String, Object> originPayload,
             @Header("targetTable") String targetTable,
             @Header("protocolId") String protocolId,
-            @Header(value = "reprocessed", required = false) Boolean reprocessed
+            @Header(value = "reprocessed", required = false) boolean reprocessed
     ) {
-        boolean isReprocessed = Boolean.TRUE.equals(reprocessed);
         try {
             TableNameValidator.validate(targetTable);
 
@@ -65,13 +64,14 @@ public class MigrationConsumer {
             String sql = String.format("INSERT INTO %s (%s) VALUES (%s)", targetTable, columns, params);
             targetJdbcTemplate.update(sql, new MapSqlParameterSource(targetPayload));
 
-            if (!isReprocessed) {
+            if (!reprocessed) {
                 protocolService.incrementProcessed(protocolId);
             }
+
             log.info("Protocolo {}: registro inserido em '{}'", protocolId, targetTable);
         } catch (Exception e) {
             log.error("Protocolo {}: erro ao processar registro - {}", protocolId, e.getMessage());
-            if (!isReprocessed) {
+            if (!reprocessed) {
                 protocolService.incrementFailed(protocolId);
             }
             throw e;

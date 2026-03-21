@@ -2,7 +2,7 @@ package com.migration.servicelayer.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.migration.servicelayer.dto.MapeamentoRequest;
+import com.migration.servicelayer.dto.MappingRequest;
 import com.migration.servicelayer.dto.MigrationStartRequest;
 import com.migration.servicelayer.dto.ProtocolResponse;
 import com.migration.servicelayer.service.AIMappingService;
@@ -10,7 +10,13 @@ import com.migration.servicelayer.service.MappingStore;
 import com.migration.servicelayer.service.MigrationService;
 import com.migration.servicelayer.service.ProtocolService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.Map;
 
@@ -40,7 +46,7 @@ public class MigrationController {
 
     @PostMapping("/ai-map")
     public ResponseEntity<String> generateAIMapping(
-            @RequestBody MapeamentoRequest request,
+            @RequestBody MappingRequest request,
             @RequestParam String targetTable
     ) {
         try {
@@ -59,7 +65,7 @@ public class MigrationController {
     @GetMapping("/mapping/{targetTable}")
     public ResponseEntity<Map<String, String>> getMapping(@PathVariable String targetTable) {
         Map<String, String> mapping = mappingStore.getMapping(targetTable);
-        if (mapping == null) {
+        if (mapping == null || mapping.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(mapping);

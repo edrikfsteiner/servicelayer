@@ -15,8 +15,14 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MigrationConsumerTest {
@@ -55,7 +61,7 @@ class MigrationConsumerTest {
         when(mappingStore.getMapping("clientes")).thenReturn(mapping);
         when(targetJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
 
-        consumer.processarMensagem(originPayload, "clientes", "proto-1", null);
+        consumer.processarMensagem(originPayload, "clientes", "proto-1", false);
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
@@ -77,7 +83,7 @@ class MigrationConsumerTest {
                 .thenThrow(new RuntimeException("DB error"));
 
         assertThrows(RuntimeException.class,
-                () -> consumer.processarMensagem(originPayload, "clientes", "proto-1", null));
+                () -> consumer.processarMensagem(originPayload, "clientes", "proto-1", false));
 
         verify(protocolService).incrementFailed("proto-1");
         verify(protocolService, never()).incrementProcessed(anyString());
@@ -88,7 +94,7 @@ class MigrationConsumerTest {
         when(mappingStore.getMapping("unknown")).thenReturn(null);
 
         assertThrows(RuntimeException.class,
-                () -> consumer.processarMensagem(originPayload, "unknown", "proto-1", null));
+                () -> consumer.processarMensagem(originPayload, "unknown", "proto-1", false));
 
         verify(protocolService).incrementFailed("proto-1");
     }
@@ -96,7 +102,7 @@ class MigrationConsumerTest {
     @Test
     void processarMensagem_shouldRejectInvalidTableName() {
         assertThrows(IllegalArgumentException.class,
-                () -> consumer.processarMensagem(originPayload, "DROP TABLE;", "proto-1", null));
+                () -> consumer.processarMensagem(originPayload, "DROP TABLE;", "proto-1", false));
     }
 
     @Test
@@ -132,7 +138,7 @@ class MigrationConsumerTest {
         when(mappingStore.getMapping("clientes")).thenReturn(partialMapping);
         when(targetJdbcTemplate.update(anyString(), any(MapSqlParameterSource.class))).thenReturn(1);
 
-        consumer.processarMensagem(originPayload, "clientes", "proto-1", null);
+        consumer.processarMensagem(originPayload, "clientes", "proto-1", false);
 
         ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(targetJdbcTemplate).update(anyString(), paramsCaptor.capture());

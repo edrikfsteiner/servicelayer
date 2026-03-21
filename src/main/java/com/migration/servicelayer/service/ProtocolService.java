@@ -53,15 +53,18 @@ public class ProtocolService {
         return new ProtocolResponse(
                 p.getId(), p.getOriginTable(), p.getTargetTable(),
                 p.getTotalRecords(), p.getProcessedRecords(), p.getFailedRecords(),
-                p.getStatus(), p.getCreatedAt(), p.getUpdatedAt());
+                p.getStatus(), p.getCreatedAt(), p.getUpdatedAt()
+        );
     }
 
     private void checkCompletion(String protocolId) {
         protocolRepository.findById(protocolId).ifPresent(p -> {
             if (p.getProcessedRecords() + p.getFailedRecords() >= p.getTotalRecords()) {
                 protocolRepository.updateStatus(protocolId, ProtocolStatus.COMPLETED);
-                log.info("Protocolo {} concluído: {} processados, {} falhas",
-                        protocolId, p.getProcessedRecords(), p.getFailedRecords());
+                log.info(
+                        "Protocolo {} concluído: {} processados, {} falhas",
+                        protocolId, p.getProcessedRecords(), p.getFailedRecords()
+                );
             }
         });
     }

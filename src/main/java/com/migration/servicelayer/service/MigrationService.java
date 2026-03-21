@@ -32,8 +32,7 @@ public class MigrationService {
         TableNameValidator.validate(originTable);
         TableNameValidator.validate(targetTable);
 
-        List<Map<String, Object>> originData = originJdbcTemplate.queryForList(
-                "SELECT * FROM " + originTable);
+        List<Map<String, Object>> originData = originJdbcTemplate.queryForList("SELECT * FROM " + originTable);
 
         String protocolId = protocolService.createProtocol(originTable, targetTable, originData.size());
 
@@ -42,10 +41,13 @@ public class MigrationService {
                     message.getMessageProperties().setHeader("targetTable", targetTable);
                     message.getMessageProperties().setHeader("protocolId", protocolId);
                     return message;
-                }));
+                }
+        ));
 
-        log.info("Protocolo {}: {} registros enfileirados de '{}' para '{}'",
-                protocolId, originData.size(), originTable, targetTable);
+        log.info(
+                "Protocolo {}: {} registros enfileirados de '{}' para '{}'",
+                protocolId, originData.size(), originTable, targetTable
+        );
 
         return protocolId;
     }

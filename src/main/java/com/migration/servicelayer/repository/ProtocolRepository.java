@@ -16,7 +16,7 @@ public class ProtocolRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
 
-    private static final RowMapper<MigrationProtocol> ROW_MAPPER = (rs, rowNum) -> {
+    private static final RowMapper<MigrationProtocol> ROW_MAPPER = (rs, _) -> {
         MigrationProtocol p = new MigrationProtocol();
         p.setId(rs.getString("id"));
         p.setOriginTable(rs.getString("origin_table"));
@@ -48,7 +48,7 @@ public class ProtocolRepository {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-                """);
+        """);
     }
 
     public void save(MigrationProtocol protocol) {
@@ -63,14 +63,16 @@ public class ProtocolRepository {
                         .addValue("totalRecords", protocol.getTotalRecords())
                         .addValue("status", protocol.getStatus().name())
                         .addValue("createdAt", protocol.getCreatedAt())
-                        .addValue("updatedAt", protocol.getUpdatedAt()));
+                        .addValue("updatedAt", protocol.getUpdatedAt())
+        );
     }
 
     public Optional<MigrationProtocol> findById(String id) {
         var result = jdbc.query(
                 "SELECT * FROM migration_protocol WHERE id = :id",
                 new MapSqlParameterSource("id", id),
-                ROW_MAPPER);
+                ROW_MAPPER
+        );
         return result.isEmpty() ? Optional.empty() : Optional.of(result.getFirst());
     }
 
@@ -79,7 +81,9 @@ public class ProtocolRepository {
                 UPDATE migration_protocol
                 SET processed_records = processed_records + 1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = :id
-                """, new MapSqlParameterSource("id", protocolId));
+                """,
+                new MapSqlParameterSource("id", protocolId)
+        );
     }
 
     public void incrementFailed(String protocolId) {
@@ -87,7 +91,9 @@ public class ProtocolRepository {
                 UPDATE migration_protocol
                 SET failed_records = failed_records + 1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = :id
-                """, new MapSqlParameterSource("id", protocolId));
+                """,
+                new MapSqlParameterSource("id", protocolId)
+        );
     }
 
     public void updateStatus(String protocolId, ProtocolStatus status) {
@@ -95,8 +101,10 @@ public class ProtocolRepository {
                 UPDATE migration_protocol
                 SET status = :status, updated_at = CURRENT_TIMESTAMP
                 WHERE id = :id
-                """, new MapSqlParameterSource()
-                .addValue("id", protocolId)
-                .addValue("status", status.name()));
+                """,
+                new MapSqlParameterSource()
+                        .addValue("id", protocolId)
+                        .addValue("status", status.name())
+        );
     }
 }
