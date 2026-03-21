@@ -56,7 +56,7 @@ public class MigrationController {
             );
             Map<String, String> mapConfig = objectMapper.readValue(jsonMapping, new TypeReference<>() {});
             mappingStore.saveMapping(targetTable, mapConfig);
-            return ResponseEntity.ok("Mapeamento gerado e salvo com sucesso para a tabela: " + targetTable + "\n" + jsonMapping);
+            return ResponseEntity.ok(jsonMapping);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Erro ao processar com a IA: " + e.getMessage());
         }
