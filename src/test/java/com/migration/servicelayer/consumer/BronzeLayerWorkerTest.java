@@ -2,6 +2,7 @@ package com.migration.servicelayer.consumer;
 
 import com.migration.servicelayer.service.MappingStore;
 import com.migration.servicelayer.service.ProtocolService;
+import com.migration.servicelayer.worker.BronzeLayerWorker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class MigrationConsumerTest {
+class BronzeLayerWorkerTest {
 
     @Mock
     private NamedParameterJdbcTemplate targetJdbcTemplate;
@@ -37,7 +38,7 @@ class MigrationConsumerTest {
     private ProtocolService protocolService;
 
     @InjectMocks
-    private MigrationConsumer consumer;
+    private BronzeLayerWorker consumer;
 
     private Map<String, Object> originPayload;
     private Map<String, String> mapping;

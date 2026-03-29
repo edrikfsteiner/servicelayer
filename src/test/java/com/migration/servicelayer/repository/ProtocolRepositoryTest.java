@@ -1,6 +1,6 @@
 package com.migration.servicelayer.repository;
 
-import com.migration.servicelayer.model.MigrationProtocol;
+import com.migration.servicelayer.model.IngestionProtocol;
 import com.migration.servicelayer.model.ProtocolStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,7 +56,7 @@ class ProtocolRepositoryTest {
 
     @Test
     void save_shouldPersistProtocol() {
-        MigrationProtocol protocol = new MigrationProtocol(
+        IngestionProtocol protocol = new IngestionProtocol(
                 "proto-1",
                 "clientes_legado",
                 "clientes",
@@ -82,7 +82,7 @@ class ProtocolRepositoryTest {
 
     @Test
     void findById_shouldReturnMappedProtocolWhenFound() {
-        MigrationProtocol expected = new MigrationProtocol(
+        IngestionProtocol expected = new IngestionProtocol(
                 "proto-1",
                 "clientes_legado",
                 "clientes",
@@ -96,7 +96,7 @@ class ProtocolRepositoryTest {
         when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(List.of(expected));
 
-        Optional<MigrationProtocol> result = protocolRepository.findById("proto-1");
+        Optional<IngestionProtocol> result = protocolRepository.findById("proto-1");
 
         assertTrue(result.isPresent());
         assertEquals(expected, result.get());
@@ -109,7 +109,7 @@ class ProtocolRepositoryTest {
         when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenAnswer(invocation -> {
                     @SuppressWarnings("unchecked")
-                    RowMapper<MigrationProtocol> rowMapper = invocation.getArgument(2, RowMapper.class);
+                    RowMapper<IngestionProtocol> rowMapper = invocation.getArgument(2, RowMapper.class);
                     ResultSet resultSet = org.mockito.Mockito.mock(ResultSet.class);
                     when(resultSet.getString("id")).thenReturn("proto-1");
                     when(resultSet.getString("origin_table")).thenReturn("clientes_legado");
@@ -123,7 +123,7 @@ class ProtocolRepositoryTest {
                     return List.of(rowMapper.mapRow(resultSet, 0));
                 });
 
-        Optional<MigrationProtocol> result = protocolRepository.findById("proto-1");
+        Optional<IngestionProtocol> result = protocolRepository.findById("proto-1");
 
         assertTrue(result.isPresent());
         assertEquals("proto-1", result.get().getId());
@@ -142,7 +142,7 @@ class ProtocolRepositoryTest {
         when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(List.of());
 
-        Optional<MigrationProtocol> result = protocolRepository.findById("missing");
+        Optional<IngestionProtocol> result = protocolRepository.findById("missing");
 
         assertFalse(result.isPresent());
     }

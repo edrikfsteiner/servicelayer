@@ -14,26 +14,27 @@ public class AIMappingService {
         this.chatClient = chatClientBuilder.build();
     }
 
-    public String generateMapping(String originSchema, String targetSchema) {
+    public String generateMapping(String payloadJsonSample, String lakehouseSchema) {
         String systemMessage = """
-            Você é um engenheiro de dados senior especialista em migração de sistemas legados.
-            Sua função é analisar a estrutura de dados de ORIGEM (sistema legado) e a estrutura de DESTINO (sistema moderno),\s
-            e criar um mapeamento 'de-para' exato.
-            \s
+            Você é um engenheiro de dados senior especialista em arquitetura Data Lakehouse e ingestão de dados.
+            Sua função é analisar um JSON de exemplo enviado por um sistema terceiro (payload) e
+            a estrutura de uma tabela de destino no Lakehouse (schema), e criar um mapeamento 'de-para' exato.
+            
             REGRAS OBRIGATÓRIAS:
             1. Devolve APENAS um objeto JSON válido.
             2. Não inclua texto explicativo antes ou depois do JSON.
             3. Não inclua blocos de formatação Markdown (como ```json).
-            4. As chaves do JSON devem ser as colunas de DESTINO (sem mencionar a tabela) e os valores devem ser as colunas de ORIGEM correspondentes (sem mencionar a tabela).
-            \s""";
+            4. As chaves do JSON devem ser as colunas do LAKEHOUSE (destino) e os valores devem ser as chaves do
+            JSON DE ENTRADA correspondentes (usando notação de ponto se houver aninhamento, ex: 'cliente.endereco.rua').
+            """;
 
         String userMessage = String.format("""
-            Schema de ORIGEM:
+            Exemplo de JSON Recebido (Payload):
             %s
             
-            Schema de DESTINO:
+            Schema do Lakehouse (Destino):
             %s
-            """, originSchema, targetSchema
+            """, payloadJsonSample, lakehouseSchema
         );
 
         return this.chatClient.prompt()

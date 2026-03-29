@@ -7,7 +7,7 @@ import com.migration.servicelayer.dto.ProtocolResponse;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.service.AIMappingService;
 import com.migration.servicelayer.service.MappingStore;
-import com.migration.servicelayer.service.MigrationService;
+import com.migration.servicelayer.service.IngestionService;
 import com.migration.servicelayer.service.ProtocolService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,13 +31,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class MigrationControllerTest {
+class IngestionControllerTest {
 
     private MockMvc mockMvc;
 
         private ObjectMapper objectMapper;
 
-    private MigrationService migrationService;
+    private IngestionService ingestionService;
 
     private AIMappingService aiMappingService;
 
@@ -50,13 +50,13 @@ class MigrationControllerTest {
                 objectMapper = new ObjectMapper();
                 objectMapper.registerModule(new JavaTimeModule());
 
-                migrationService = mock(MigrationService.class);
+                ingestionService = mock(IngestionService.class);
                 aiMappingService = mock(AIMappingService.class);
                 mappingStore = mock(MappingStore.class);
                 protocolService = mock(ProtocolService.class);
 
-                MigrationController controller = new MigrationController(
-                                migrationService,
+                IngestionController controller = new IngestionController(
+                        ingestionService,
                                 aiMappingService,
                                 mappingStore,
                                 objectMapper,
@@ -70,7 +70,7 @@ class MigrationControllerTest {
 
     @Test
     void start_shouldReturn202WithProtocolId() throws Exception {
-        when(migrationService.startMassMigration("clientes_legado", "clientes")).thenReturn("proto-abc");
+        when(ingestionService.startMassMigration("clientes_legado", "clientes")).thenReturn("proto-abc");
 
         mockMvc.perform(post("/api/migration/start")
                         .contentType(MediaType.APPLICATION_JSON)

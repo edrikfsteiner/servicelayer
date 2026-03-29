@@ -1,6 +1,6 @@
 package com.migration.servicelayer.controller;
 
-import com.migration.servicelayer.service.DlqService;
+import com.migration.servicelayer.service.DLQService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -11,11 +11,11 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/dlq")
-public class DlqController {
+public class DLQController {
 
-    private final DlqService dlqService;
+    private final DLQService dlqService;
 
-    public DlqController(DlqService dlqService) {
+    public DLQController(DLQService dlqService) {
         this.dlqService = dlqService;
     }
 

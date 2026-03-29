@@ -11,13 +11,10 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class MigrationProtocol {
+public class IngestionProtocol {
     private String id;
-    private String originTable;
-    private String targetTable;
-    private long totalRecords;
-    private long processedRecords;
-    private long failedRecords;
+    private String tenantId;
+    private String eventType;
     private ProtocolStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

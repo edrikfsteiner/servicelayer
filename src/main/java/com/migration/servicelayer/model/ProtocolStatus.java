@@ -1,7 +1,8 @@
 package com.migration.servicelayer.model;
 
 public enum ProtocolStatus {
-    PENDING,
+    QUEUED,
     IN_PROGRESS,
-    COMPLETED
+    COMPLETED,
+    FAILED
 }

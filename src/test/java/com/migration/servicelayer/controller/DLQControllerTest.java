@@ -1,6 +1,6 @@
 package com.migration.servicelayer.controller;
 
-import com.migration.servicelayer.service.DlqService;
+import com.migration.servicelayer.service.DLQService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -13,16 +13,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class DlqControllerTest {
+class DLQControllerTest {
 
     private MockMvc mockMvc;
 
-    private DlqService dlqService;
+    private DLQService dlqService;
 
     @BeforeEach
     void setUp() {
-        dlqService = mock(DlqService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new DlqController(dlqService)).build();
+        dlqService = mock(DLQService.class);
+        mockMvc = MockMvcBuilders.standaloneSetup(new DLQController(dlqService)).build();
     }
 
     @Test

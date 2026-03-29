@@ -1,23 +1,11 @@
 services:
-  origin:
-    image: mysql:8.0
-    container_name: origin-db
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: origin_db
-    ports:
-      - "3306:3306"
-    volumes:
-      - origin_data:/var/lib/origin
-    restart: unless-stopped
-
-  target:
+  lakehouse:
     image: postgres:16-alpine
-    container_name: target-db
+    container_name: lakehouse-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: target_db
+      POSTGRES_DB: lakehouse_db
     ports:
       - "5432:5432"
     volumes:

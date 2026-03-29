@@ -6,11 +6,8 @@ import java.time.LocalDateTime;
 
 public record ProtocolResponse(
         String protocolId,
-        String originTable,
-        String targetTable,
-        long totalRecords,
-        long processedRecords,
-        long failedRecords,
+        String tenantId,
+        String eventType,
         ProtocolStatus status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

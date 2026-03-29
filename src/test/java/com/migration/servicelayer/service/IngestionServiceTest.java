@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class MigrationServiceTest {
+class IngestionServiceTest {
 
     @Mock
     private JdbcTemplate originJdbcTemplate;
@@ -38,7 +38,7 @@ class MigrationServiceTest {
     private ProtocolService protocolService;
 
     @InjectMocks
-    private MigrationService migrationService;
+    private IngestionService ingestionService;
 
     @Test
     void startMassMigration_shouldQueryOriginAndPublishMessages() {
@@ -49,7 +49,7 @@ class MigrationServiceTest {
         when(originJdbcTemplate.queryForList("SELECT * FROM clientes_legado")).thenReturn(rows);
         when(protocolService.createProtocol("clientes_legado", "clientes", 2)).thenReturn("proto-abc");
 
-        String protocolId = migrationService.startMassMigration("clientes_legado", "clientes");
+        String protocolId = ingestionService.startMassMigration("clientes_legado", "clientes");
 
         assertEquals("proto-abc", protocolId);
         verify(originJdbcTemplate).queryForList("SELECT * FROM clientes_legado");
@@ -64,7 +64,7 @@ class MigrationServiceTest {
         when(originJdbcTemplate.queryForList("SELECT * FROM clientes_legado")).thenReturn(rows);
         when(protocolService.createProtocol("clientes_legado", "clientes", 1)).thenReturn("proto-abc");
 
-        migrationService.startMassMigration("clientes_legado", "clientes");
+        ingestionService.startMassMigration("clientes_legado", "clientes");
 
         ArgumentCaptor<MessagePostProcessor> captor = ArgumentCaptor.forClass(MessagePostProcessor.class);
         verify(rabbitTemplate).convertAndSend(
@@ -79,7 +79,7 @@ class MigrationServiceTest {
     @Test
     void startMassMigration_shouldRejectInvalidTableName() {
         assertThrows(IllegalArgumentException.class,
-                () -> migrationService.startMassMigration("DROP TABLE x;--", "clientes"));
+                () -> ingestionService.startMassMigration("DROP TABLE x;--", "clientes"));
     }
 
     @Test
@@ -87,7 +87,7 @@ class MigrationServiceTest {
         when(originJdbcTemplate.queryForList("SELECT * FROM empty_table")).thenReturn(List.of());
         when(protocolService.createProtocol("empty_table", "clientes", 0)).thenReturn("proto-empty");
 
-        String protocolId = migrationService.startMassMigration("empty_table", "clientes");
+        String protocolId = ingestionService.startMassMigration("empty_table", "clientes");
 
         assertEquals("proto-empty", protocolId);
         verify(rabbitTemplate, never()).convertAndSend(anyString(), anyString(), any(Map.class), any(MessagePostProcessor.class));

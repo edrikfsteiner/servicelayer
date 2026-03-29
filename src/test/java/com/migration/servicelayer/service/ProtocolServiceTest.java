@@ -1,7 +1,7 @@
 package com.migration.servicelayer.service;
 
 import com.migration.servicelayer.dto.ProtocolResponse;
-import com.migration.servicelayer.model.MigrationProtocol;
+import com.migration.servicelayer.model.IngestionProtocol;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.repository.ProtocolRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,11 +31,11 @@ class ProtocolServiceTest {
     @InjectMocks
     private ProtocolService protocolService;
 
-    private MigrationProtocol sampleProtocol;
+    private IngestionProtocol sampleProtocol;
 
     @BeforeEach
     void setUp() {
-        sampleProtocol = new MigrationProtocol();
+        sampleProtocol = new IngestionProtocol();
         sampleProtocol.setId("proto-123");
         sampleProtocol.setOriginTable("clientes_legado");
         sampleProtocol.setTargetTable("clientes");
@@ -54,10 +54,10 @@ class ProtocolServiceTest {
         assertNotNull(protocolId);
         assertFalse(protocolId.isBlank());
 
-        ArgumentCaptor<MigrationProtocol> captor = ArgumentCaptor.forClass(MigrationProtocol.class);
+        ArgumentCaptor<IngestionProtocol> captor = ArgumentCaptor.forClass(IngestionProtocol.class);
         verify(protocolRepository).save(captor.capture());
 
-        MigrationProtocol saved = captor.getValue();
+        IngestionProtocol saved = captor.getValue();
         assertEquals("origin_tbl", saved.getOriginTable());
         assertEquals("target_tbl", saved.getTargetTable());
         assertEquals(10, saved.getTotalRecords());
@@ -68,7 +68,7 @@ class ProtocolServiceTest {
     void createProtocol_withZeroRecords_shouldSetCompleted() {
         protocolService.createProtocol("origin_tbl", "target_tbl", 0);
 
-        ArgumentCaptor<MigrationProtocol> captor = ArgumentCaptor.forClass(MigrationProtocol.class);
+        ArgumentCaptor<IngestionProtocol> captor = ArgumentCaptor.forClass(IngestionProtocol.class);
         verify(protocolRepository).save(captor.capture());
 
         assertEquals(ProtocolStatus.COMPLETED, captor.getValue().getStatus());

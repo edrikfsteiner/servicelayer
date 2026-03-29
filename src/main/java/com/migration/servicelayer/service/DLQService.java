@@ -3,25 +3,31 @@ package com.migration.servicelayer.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-public class DlqService {
+public class DLQService {
 
-    private static final String DLQ_QUEUE = "migration.data.dlq";
-    private static final String EXCHANGE = "migration.exchange";
-    private static final String ROUTING_KEY = "migration.routing.key";
+    @Value("app.messaging.exchange")
+    private String exchange;
+
+    @Value("app.messaging.queue-dlq")
+    private String dlqQueue;
+
+    @Value("app.messaging.routing-key-main")
+    private String mainRoutingKey;
 
     private final RabbitTemplate rabbitTemplate;
 
-    public DlqService(RabbitTemplate rabbitTemplate) {
+    public DLQService(RabbitTemplate rabbitTemplate) {
         this.rabbitTemplate = rabbitTemplate;
     }
 
     public long count() {
         Long messageCount = rabbitTemplate.execute(channel -> {
-            var result = channel.queueDeclarePassive(DLQ_QUEUE);
+            var result = channel.queueDeclarePassive(dlqQueue);
             return (long) result.getMessageCount();
         });
         return messageCount != null ? messageCount : 0;
@@ -30,9 +36,9 @@ public class DlqService {
     public int reprocessAll() {
         int count = 0;
         Message message;
-        while ((message = rabbitTemplate.receive(DLQ_QUEUE)) != null) {
+        while ((message = rabbitTemplate.receive(dlqQueue)) != null) {
             message.getMessageProperties().setHeader("reprocessed", true);
-            rabbitTemplate.send(EXCHANGE, ROUTING_KEY, message);
+            rabbitTemplate.send(exchange, mainRoutingKey, message);
             count++;
         }
         log.info("Reprocessados {} registros da DLQ", count);

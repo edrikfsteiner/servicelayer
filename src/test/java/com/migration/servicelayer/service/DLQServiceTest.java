@@ -23,13 +23,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class DlqServiceTest {
+class DLQServiceTest {
 
     @Mock
     private RabbitTemplate rabbitTemplate;
 
     @InjectMocks
-    private DlqService dlqService;
+    private DLQService dlqService;
 
     @Test
     void count_shouldReturnMessageCount() {
