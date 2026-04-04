@@ -1,10 +1,10 @@
 package com.migration.servicelayer.worker;
 
 import com.migration.servicelayer.dto.IngestionMessage;
+import com.migration.servicelayer.model.BronzeRawData;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.service.ProtocolService;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.Document;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.messaging.handler.annotation.Header;
@@ -33,15 +33,15 @@ public class IngestionWorker {
                 protocolService.updateStatus(protocolId, ProtocolStatus.IN_PROGRESS);
             }
 
-            Document payloadBson = Document.parse(message.payload().toString());
-            Document bronzeRecord = new Document()
-                    .append("protocol_id", protocolId)
-                    .append("tenant_id", message.tenantId())
-                    .append("event_type", message.eventType())
-                    .append("payload", payloadBson)
-                    .append("created_at", LocalDateTime.now());
+            BronzeRawData document = BronzeRawData.builder()
+                    .protocolId(protocolId)
+                    .tenantId(message.tenantId())
+                    .eventType(message.eventType())
+                    .payload(message.payload())
+                    .createdAt(LocalDateTime.now())
+                    .build();
 
-            mongoTemplate.insert(bronzeRecord, "bronze_raw_data");
+            mongoTemplate.insert(document);
 
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED);
             log.info("Protocolo {}: Dados brutos salvos com sucesso na Camada Bronze", protocolId);

@@ -41,17 +41,17 @@ public class ProtocolService {
                 .orElseThrow(() -> new IllegalArgumentException("Protocolo não encontrado: " + protocolId));
 
         return new ProtocolResponse(
-                protocol.getId(), protocol.getTenantId(), protocol.getEventType(),
-                protocol.getStatus(), protocol.getCreatedAt(), protocol.getUpdatedAt()
+                protocol.getId(),
+                protocol.getTenantId(),
+                protocol.getEventType(),
+                protocol.getStatus(),
+                protocol.getCreatedAt(),
+                protocol.getUpdatedAt()
         );
     }
 
     public void updateStatus(String protocolId, ProtocolStatus status) {
-        protocolRepository.findById(protocolId).ifPresent(protocol -> {
-            protocol.setStatus(status);
-            protocol.setUpdatedAt(LocalDateTime.now());
-            protocolRepository.save(protocol);
-            log.info("Protocolo {} atualizado para o status: {}", protocolId, status);
-        });
+        protocolRepository.updateStatus(protocolId, status, LocalDateTime.now());
+        log.info("Protocolo {} atualizado para o status: {}", protocolId, status);
     }
 }
