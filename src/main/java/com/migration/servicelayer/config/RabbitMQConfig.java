@@ -14,19 +14,19 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    @Value("app.messaging.exchange")
+    @Value("${app.messaging.exchange}")
     private String exchange;
 
-    @Value("app.messaging.queue-main")
+    @Value("${app.messaging.queue-main}")
     private String mainQueue;
 
-    @Value("app.messaging.queue-dlq")
+    @Value("${app.messaging.queue-dlq}")
     private String dlqQueue;
 
-    @Value("app.messaging.routing-key-main")
+    @Value("${app.messaging.routing-key-main}")
     private String mainRoutingKey;
 
-    @Value("app.messaging.routing-key-dlq")
+    @Value("${app.messaging.routing-key-dlq}")
     private String dlqRoutingKey;
 
     @Bean

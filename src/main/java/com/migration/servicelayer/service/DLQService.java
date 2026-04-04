@@ -10,13 +10,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class DLQService {
 
-    @Value("app.messaging.exchange")
+    @Value("${app.messaging.exchange}")
     private String exchange;
 
-    @Value("app.messaging.queue-dlq")
+    @Value("${app.messaging.queue-dlq}")
     private String dlqQueue;
 
-    @Value("app.messaging.routing-key-main")
+    @Value("${app.messaging.routing-key-main}")
     private String mainRoutingKey;
 
     private final RabbitTemplate rabbitTemplate;

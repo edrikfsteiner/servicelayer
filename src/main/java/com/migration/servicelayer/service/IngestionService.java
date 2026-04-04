@@ -11,10 +11,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class IngestionService {
 
-    @Value("app.messaging.exchange")
+    @Value("${app.messaging.exchange}")
     private String exchange;
 
-    @Value("app.messaging.routing-key-main")
+    @Value("${app.messaging.routing-key-main}")
     private String mainRoutingKey;
 
     private final RabbitTemplate rabbitTemplate;

@@ -14,13 +14,13 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-public class BronzeLayerWorker {
+public class IngestionWorker {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final ProtocolService protocolService;
     private final ObjectMapper objectMapper;
 
-    public BronzeLayerWorker(NamedParameterJdbcTemplate jdbcTemplate, ProtocolService protocolService, ObjectMapper objectMapper) {
+    public IngestionWorker(NamedParameterJdbcTemplate jdbcTemplate, ProtocolService protocolService, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
         this.protocolService = protocolService;
         this.objectMapper = objectMapper;
@@ -40,7 +40,7 @@ public class BronzeLayerWorker {
         """);
     }
 
-    @RabbitListener(queues = "${app.messaging.queue-bronze}")
+    @RabbitListener(queues = "${app.messaging.queue-main}")
     public void consume(IngestionMessage message, @Header(value = "reprocessed", required = false) boolean reprocessed) {
         String protocolId = message.protocolId();
 

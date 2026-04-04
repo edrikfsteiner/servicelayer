@@ -1,4 +1,8 @@
 spring:
+  data:
+    mongodb:
+      uri: mongodb://admin:password@localhost:27017/lakehouse_db?authSource=admin
+
   threads:
     virtual:
       enabled: true
@@ -20,20 +24,9 @@ spring:
           temperature: 0.0
 
 app:
-  datasource:
-    lakehouse:
-      jdbc-url: jdbc:postgresql://localhost:5432/lakehouse_db
-      username: postgres
-      password: password
-      driver-class-name: org.postgresql.Driver
   messaging:
     exchange: ingestion.exchange
     queue-main: lakehouse.bronze.queue
     queue-dlq: lakehouse.bronze.dlq
     routing-key-main: ingestion.routing.key
     routing-key-dlq: ingestion.dlq.routing.key
-
-  jpa:
-    hibernate:
-      ddl-auto: none
-      show-sql: false
