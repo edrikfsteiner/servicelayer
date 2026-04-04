@@ -1,13 +1,14 @@
 package com.migration.servicelayer.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -15,41 +16,30 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class MappingStore {
 
-    private final Map<String, Map<String, String>> cache = new ConcurrentHashMap<>();
-    private final NamedParameterJdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
+    private static final String COLLECTION_NAME = "mapping_contracts";
 
-    public MappingStore(NamedParameterJdbcTemplate jdbc, ObjectMapper objectMapper) {
-        this.jdbc = jdbc;
-        this.objectMapper = objectMapper;
+    private final Map<String, Map<String, String>> cache = new ConcurrentHashMap<>();
+    private final MongoTemplate mongoTemplate;
+
+    public MappingStore(MongoTemplate mongoTemplate) {
+        this.mongoTemplate = mongoTemplate;
     }
 
     @PostConstruct
     public void init() {
-        jdbc.getJdbcTemplate().execute("""
-                CREATE TABLE IF NOT EXISTS mapping_contract (
-                    lakehouse_table VARCHAR(255) PRIMARY KEY,
-                    mapping_json TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-        """);
         loadAll();
     }
 
     public void saveMapping(String lakehouseTable, Map<String, String> mapping) {
         try {
-            String json = objectMapper.writeValueAsString(mapping);
-            jdbc.update("""
-                    INSERT INTO mapping_contract (lakehouse_table, mapping_json)
-                    VALUES (:lakehouseTable, :json)
-                    ON CONFLICT (lakehouse_table) DO UPDATE SET mapping_json = :json, created_at = CURRENT_TIMESTAMP
-                    """,
-                    new MapSqlParameterSource()
-                            .addValue("lakehouseTable", lakehouseTable)
-                            .addValue("json", json)
-            );
+            Query query = new Query(Criteria.where("_id").is(lakehouseTable));
+            Update update = new Update()
+                    .set("mapping", mapping)
+                    .set("updatedAt", LocalDateTime.now());
+
+            mongoTemplate.upsert(query, update, COLLECTION_NAME);
             cache.put(lakehouseTable, mapping);
-            log.info("Contrato salvo para tabela: {}", lakehouseTable);
+            log.info("Contrato salvo para coleção: {}", lakehouseTable);
         } catch (Exception e) {
             throw new RuntimeException("Erro ao salvar contrato: " + e.getMessage(), e);
         }
@@ -60,18 +50,18 @@ public class MappingStore {
     }
 
     private void loadAll() {
-        jdbc.query("SELECT lakehouse_table, mapping_json FROM mapping_contract", (rs, _) -> {
+        var documents = mongoTemplate.findAll(Map.class, COLLECTION_NAME);
+
+        for (Map document : documents) {
             try {
-                String table = rs.getString("lakehouse_table");
-                Map<String, String> mapping = objectMapper.readValue(
-                        rs.getString("mapping_json"), new TypeReference<>() {}
-                );
-                cache.put(table, mapping);
+                String id = (String) document.get("_id");
+                Map<String, String> mapping = (Map<String, String>) document.get("mapping");
+                cache.put(id, mapping);
             } catch (Exception e) {
-                log.error("Erro ao carregar contrato do banco: {}", e.getMessage());
+                log.error("Erro ao carregar contrato do database: {}", e.getMessage());
             }
-            return null;
-        });
-        log.info("Carregados {} contratos de mapeamento do banco", cache.size());
+        }
+
+        log.info("Carregados {} contratos de mapeamento do database", cache.size());
     }
 }

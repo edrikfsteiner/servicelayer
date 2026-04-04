@@ -47,7 +47,11 @@ public class ProtocolService {
     }
 
     public void updateStatus(String protocolId, ProtocolStatus status) {
-        protocolRepository.updateStatus(protocolId, status);
-        log.info("Protocolo {} atualizado para o status: {}", protocolId, status);
+        protocolRepository.findById(protocolId).ifPresent(protocol -> {
+            protocol.setStatus(status);
+            protocol.setUpdatedAt(LocalDateTime.now());
+            protocolRepository.save(protocol);
+            log.info("Protocolo {} atualizado para o status: {}", protocolId, status);
+        });
     }
 }

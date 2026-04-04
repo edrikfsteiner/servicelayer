@@ -6,4 +6,4 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ProtocolRepository extends MongoRepository<IngestionProtocol, ObjectId> {}
+public interface ProtocolRepository extends MongoRepository<IngestionProtocol, String> {}
