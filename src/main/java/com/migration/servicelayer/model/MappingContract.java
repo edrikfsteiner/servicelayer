@@ -1,6 +1,7 @@
 package com.migration.servicelayer.model;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -14,15 +15,12 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "ingestion_protocols")
-public class IngestionProtocol {
+@Document(collection = "mapping_contracts")
+public class MappingContract {
 
     @Id
     private String id;
 
-    private String tenantId;
-    private String eventType;
-    private ProtocolStatus status;
-    private LocalDateTime createdAt;
+    private Map<String, String> mapping;
     private LocalDateTime updatedAt;
 }

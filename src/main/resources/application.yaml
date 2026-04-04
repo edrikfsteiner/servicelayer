@@ -1,7 +1,6 @@
 spring:
-  data:
-    mongodb:
-      uri: mongodb://admin:password@localhost:27017/lakehouse_db?authSource=admin
+  mongodb:
+    uri: mongodb://admin:password@localhost:27017/lakehouse_db?authSource=admin
 
   threads:
     virtual:
@@ -26,7 +25,7 @@ spring:
 app:
   messaging:
     exchange: ingestion.exchange
-    queue-main: lakehouse.bronze.queue
-    queue-dlq: lakehouse.bronze.dlq
+    queue-main: ingestion.bronze.queue
+    queue-dlq: ingestion.bronze.dlq
     routing-key-main: ingestion.routing.key
     routing-key-dlq: ingestion.dlq.routing.key

@@ -1,43 +1,29 @@
 package com.migration.servicelayer.worker;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.migration.servicelayer.dto.IngestionMessage;
-import com.migration.servicelayer.model.ProtocolStatus;
-import com.migration.servicelayer.service.ProtocolService;
-import jakarta.annotation.PostConstruct;
-import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
+
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
+
+import com.migration.servicelayer.dto.IngestionMessage;
+import com.migration.servicelayer.model.BronzeRawData;
+import com.migration.servicelayer.model.ProtocolStatus;
+import com.migration.servicelayer.service.ProtocolService;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
 public class IngestionWorker {
 
-    private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final MongoTemplate mongoTemplate;
     private final ProtocolService protocolService;
-    private final ObjectMapper objectMapper;
 
-    public IngestionWorker(NamedParameterJdbcTemplate jdbcTemplate, ProtocolService protocolService, ObjectMapper objectMapper) {
-        this.jdbcTemplate = jdbcTemplate;
+    public IngestionWorker(MongoTemplate mongoTemplate, ProtocolService protocolService) {
+        this.mongoTemplate = mongoTemplate;
         this.protocolService = protocolService;
-        this.objectMapper = objectMapper;
-    }
-
-    @PostConstruct
-    public void initSchema() {
-        jdbcTemplate.getJdbcTemplate().execute("""
-                CREATE TABLE IF NOT EXISTS bronze_raw_data (
-                    id BIGSERIAL PRIMARY KEY,
-                    protocol_id VARCHAR(36) NOT NULL,
-                    tenant_id VARCHAR(255) NOT NULL,
-                    event_type VARCHAR(255) NOT NULL,
-                    payload JSONB NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-        """);
     }
 
     @RabbitListener(queues = "${app.messaging.queue-main}")
@@ -49,18 +35,15 @@ public class IngestionWorker {
                 protocolService.updateStatus(protocolId, ProtocolStatus.IN_PROGRESS);
             }
 
-            String jsonPayloadString = objectMapper.writeValueAsString(message.payload());
-            String sql = """
-                    INSERT INTO bronze_raw_data (protocol_id, tenant_id, event_type, payload)
-                    VALUES (:protocolId, :tenantId, :eventType, :payload::jsonb)
-            """;
-
-            jdbcTemplate.update(sql, new MapSqlParameterSource()
-                    .addValue("protocolId", protocolId)
-                    .addValue("tenantId", message.tenantId())
-                    .addValue("eventType", message.eventType())
-                    .addValue("payload", jsonPayloadString)
+            BronzeRawData document = new BronzeRawData(
+                    null,
+                    protocolId,
+                    message.tenantId(),
+                    message.eventType(),
+                    message.payload(),
+                    LocalDateTime.now()
             );
+            mongoTemplate.insert(document);
 
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED);
             log.info("Protocolo {}: Dados brutos salvos com sucesso na Camada Bronze", protocolId);
