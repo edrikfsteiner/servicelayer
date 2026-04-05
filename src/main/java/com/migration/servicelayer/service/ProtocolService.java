@@ -5,7 +5,9 @@ import com.migration.servicelayer.model.IngestionProtocol;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.repository.ProtocolRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -36,9 +38,9 @@ public class ProtocolService {
         return protocolId;
     }
 
-    public ProtocolResponse getStatus(String protocolId) {
-        IngestionProtocol protocol = protocolRepository.findById(protocolId)
-                .orElseThrow(() -> new IllegalArgumentException("Protocolo não encontrado: " + protocolId));
+    public ProtocolResponse getStatus(String protocolId, String tenantId) {
+        IngestionProtocol protocol = protocolRepository.findByIdAndTenantId(protocolId, tenantId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Protocolo não encontrado"));
 
         return new ProtocolResponse(
                 protocol.getId(),

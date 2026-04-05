@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.repository.Update;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Repository
 public interface ProtocolRepository extends MongoRepository<IngestionProtocol, String> {
@@ -15,4 +16,6 @@ public interface ProtocolRepository extends MongoRepository<IngestionProtocol, S
     @Query("{ '_id': ?0 }")
     @Update("{ '$set': { 'status': ?1, 'updatedAt': ?2 } }")
     void updateStatus(String id, ProtocolStatus status, LocalDateTime updatedAt);
+
+    Optional<IngestionProtocol> findByIdAndTenantId(String id, String tenantId);
 }
