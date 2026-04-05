@@ -1,10 +1,10 @@
 package com.migration.servicelayer.worker;
 
 import com.migration.servicelayer.dto.IngestionMessage;
-import com.migration.servicelayer.model.BronzeRawData;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.service.ProtocolService;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.messaging.handler.annotation.Header;
@@ -33,16 +33,14 @@ public class IngestionWorker {
                 protocolService.updateStatus(protocolId, ProtocolStatus.IN_PROGRESS);
             }
 
-            BronzeRawData document = BronzeRawData.builder()
-                    .protocolId(protocolId)
-                    .tenantId(message.tenantId())
-                    .eventType(message.eventType())
-                    .payload(message.payload())
-                    .createdAt(LocalDateTime.now())
-                    .build();
+            Document document = new Document();
+            document.put("protocolId", protocolId);
+            document.put("tenantId", message.tenantId());
+            document.put("eventType", message.eventType());
+            document.put("createdAt", LocalDateTime.now());
+            document.put("payload", Document.parse(message.payload().toString()));
 
             mongoTemplate.insert(document);
-
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED);
             log.info("Protocolo {}: Dados brutos salvos com sucesso na Camada Bronze", protocolId);
         } catch (Exception e) {
