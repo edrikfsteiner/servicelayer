@@ -1,5 +1,6 @@
 package com.migration.servicelayer.controller;
 
+import com.migration.servicelayer.dto.AuthRequest;
 import com.migration.servicelayer.model.ApiClient;
 import com.migration.servicelayer.repository.ApiClientRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,6 +64,4 @@ public class AuthController {
                 "expires_in", String.valueOf(jwtExpiration)
         ));
     }
-
-    public record AuthRequest(String clientId, String clientSecret) {}
 }
