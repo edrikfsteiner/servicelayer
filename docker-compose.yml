@@ -1,4 +1,17 @@
 services:
+  lakehouse:
+    image: mongo:latest
+    container_name: lakehouse-db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: lakehouse_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - lakehouse_data:/data/db
+    restart: unless-stopped
+
   rabbitmq-broker:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq
@@ -9,3 +22,6 @@ services:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin123
     restart: unless-stopped
+
+volumes:
+  lakehouse_data:
