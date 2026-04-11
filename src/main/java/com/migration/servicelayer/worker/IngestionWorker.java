@@ -38,9 +38,9 @@ public class IngestionWorker {
             document.put("tenantId", message.tenantId());
             document.put("eventType", message.eventType());
             document.put("createdAt", LocalDateTime.now());
-            document.put("payload", Document.parse(message.payload().toString()));
+            document.put("payload", message.payload());
 
-            mongoTemplate.insert(document);
+            mongoTemplate.insert(document, "bronze_" + message.tenantId());
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED);
             log.info("Protocolo {}: Dados brutos salvos com sucesso na Camada Bronze", protocolId);
         } catch (Exception e) {

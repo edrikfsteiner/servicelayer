@@ -1,10 +1,10 @@
 package com.migration.servicelayer.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Map;
 
 public record IngestionMessage(
         String protocolId,
         String tenantId,
         String eventType,
-        JsonNode payload
+        Map<String, Object> payload
 ) {}

@@ -1,11 +1,14 @@
 spring:
-  data:
-    mongodb:
-      uri: mongodb://admin:password@localhost:27017/lakehouse_db?authSource=admin
+  mongodb:
+    uri: ${MONGODB_URI}
 
   threads:
     virtual:
       enabled: true
+
+  devtools:
+    virtual:
+      enabled: false
 
   rabbitmq:
     host: localhost
