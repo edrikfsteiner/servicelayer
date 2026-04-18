@@ -38,9 +38,13 @@ public class IngestionWorker {
             document.put("tenantId", message.tenantId());
             document.put("eventType", message.eventType());
             document.put("createdAt", LocalDateTime.now());
-            document.put("payload", message.payload());
+            document.put("payload", Document.parse(message.payload().toString()));
+            document.put("_processed", false);
 
-            mongoTemplate.insert(document, "bronze_" + message.tenantId());
+            // Persist to the per-tenant bronze collection so the Silver Layer
+            // can locate records by tenant without cross-tenant scans.
+            String bronzeCollection = "bronze_" + message.tenantId().replaceAll("[^a-zA-Z0-9_]", "_");
+            mongoTemplate.insert(document, bronzeCollection);
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED);
             log.info("Protocolo {}: Dados brutos salvos com sucesso na Camada Bronze", protocolId);
         } catch (Exception e) {

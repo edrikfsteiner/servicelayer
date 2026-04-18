@@ -1,12 +1,11 @@
 package com.migration.servicelayer.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.migration.servicelayer.dto.IngestionMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -26,7 +25,7 @@ public class IngestionService {
         this.protocolService = protocolService;
     }
 
-    public String publishToQueue(String tenantId, String eventType, Map<String, Object> payload) {
+    public String publishToQueue(String tenantId, String eventType, JsonNode payload) {
         String protocolId = protocolService.createProtocol(tenantId, eventType);
         IngestionMessage message = new IngestionMessage(protocolId, tenantId, eventType, payload);
         rabbitTemplate.convertAndSend(exchange, mainRoutingKey, message);

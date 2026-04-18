@@ -1,14 +1,10 @@
 spring:
-  mongodb:
-    uri: ${MONGODB_URI}
-
+  data:
+    mongodb:
+      uri: ${MONGODB_URI}
   threads:
     virtual:
       enabled: true
-
-  devtools:
-    virtual:
-      enabled: false
 
   rabbitmq:
     host: localhost
@@ -27,3 +23,19 @@ app:
     queue-dlq: lakehouse.bronze.dlq
     routing-key-main: ingestion.routing.key
     routing-key-dlq: ingestion.dlq.routing.key
+
+rate-limit:
+  capacity: 1000   # max requests per window per tenant
+  minutes: 1       # sliding window size in minutes
+
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini  # cost-effective model; override with gpt-4o for higher accuracy
+
+silver:
+  scheduler:
+    fixed-delay-ms: 300000  # 5 minutes between scheduler runs
