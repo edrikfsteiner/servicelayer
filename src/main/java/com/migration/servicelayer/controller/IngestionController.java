@@ -1,6 +1,5 @@
 package com.migration.servicelayer.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.migration.servicelayer.dto.ProtocolResponse;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.service.IngestionService;
@@ -32,7 +31,7 @@ public class IngestionController {
     @PostMapping
     public ResponseEntity<Map<String, String>> receiveData(
             @RequestHeader(value = "X-Event-Type", defaultValue = "raw_data") String eventType,
-            @RequestBody JsonNode payload,
+            @RequestBody Map<String, Object> payload,
             JwtAuthenticationToken token
     ) {
         String tenantId = (String) token.getTokenAttributes().get("tenantId");

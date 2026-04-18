@@ -47,7 +47,10 @@ public class SilverTransformationScheduler {
     static final int BATCH_SIZE = 10_000;
 
     /** Criteria that selects bronze records not yet promoted to silver. */
-    private static final Criteria UNPROCESSED = Criteria.where("_processed").ne(true);
+    private static final Criteria UNPROCESSED = Criteria.where("_processed").ne(true)
+            .and("eventType").ne("raw_data");
+
+    private static final String BRONZE = "bronze";
 
     private final MongoTemplate mongoTemplate;
     private final SilverMappingRulesRepository silverMappingRulesRepository;
@@ -57,23 +60,67 @@ public class SilverTransformationScheduler {
     // -------------------------------------------------------------------------
 
     /**
-     * Iterates over all tenant rule sets and drives per-tenant batch processing.
-     * Uses {@code fixedDelay} (not {@code fixedRate}) so overlapping runs are
-     * impossible — the next run starts only after the current one fully completes.
+     * Runs every day at midnight. Discovers all bronze collections that have
+     * unprocessed records, auto-profiles tenants that still have no rules, then
+     * transforms bronze → silver for every tenant that has rules.
+     *
+     * <p>Uses {@code cron} (not {@code fixedRate}) — overlapping runs are impossible.
+     * Override via {@code silver.scheduler.cron} in {@code application.yaml}.
      */
-    @Scheduled(fixedDelayString = "${silver.scheduler.fixed-delay-ms:300000}")
+    @Scheduled(cron = "${silver.scheduler.cron:0 0 0 * * *}")
     public void processAllTenants() {
+        long pendingCount = mongoTemplate.count(Query.query(UNPROCESSED), BRONZE);
+        if (pendingCount == 0) {
+            log.info("Silver scheduler triggered — no unprocessed bronze records found.");
+            return;
+        }
+
         List<SilverMappingRules> allRules = silverMappingRulesRepository.findAll();
-        log.info("Silver scheduler triggered — {} rule set(s) found.", allRules.size());
+        if (allRules.isEmpty()) {
+            log.warn("Silver scheduler triggered — {} bronze record(s) pending but no schema registered. "
+                    + "Tenants must register schemas via POST /api/schema/{eventType}.", pendingCount);
+            return;
+        }
+
+        flagSchemaMissingRecords();
+
+        log.info("Silver scheduler triggered — {} bronze record(s) pending, {} rule set(s) found.",
+                pendingCount, allRules.size());
 
         for (SilverMappingRules rules : allRules) {
             try {
                 processTenant(rules);
             } catch (Exception e) {
-                log.error("Silver processing failed for tenant='{}': {}",
-                        rules.getTenantId(), e.getMessage(), e);
+                log.error("Silver processing failed for tenant='{}', eventType='{}': {}",
+                        rules.getTenantId(), rules.getEventType(), e.getMessage(), e);
             }
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // raw_data handling
+    // -------------------------------------------------------------------------
+
+    /**
+     * Finds all unprocessed records with eventType = "raw_data" and stamps them
+     * with {@code _schema_missing: true}. These records stay in bronze indefinitely
+     * until the tenant registers a schema via POST /api/schema/raw_data and
+     * re-ingests (or re-processes manually).
+     */
+    void flagSchemaMissingRecords() {
+        Criteria rawDataFilter = Criteria.where("_processed").ne(true)
+                .and("eventType").is("raw_data");
+
+        long count = mongoTemplate.count(Query.query(rawDataFilter), BRONZE);
+        if (count == 0) return;
+
+        mongoTemplate.updateMulti(
+                Query.query(rawDataFilter),
+                Update.update("_schema_missing", true),
+                BRONZE
+        );
+        log.warn("Flagged {} bronze record(s) with _schema_missing=true (eventType=raw_data). "
+                + "Register a schema via POST /api/schema/raw_data to process them.", count);
     }
 
     // -------------------------------------------------------------------------
@@ -82,29 +129,31 @@ public class SilverTransformationScheduler {
 
     void processTenant(SilverMappingRules rules) {
         String tenantId = rules.getTenantId();
-        String bronzeCollection = bronzeCollection(tenantId);
-        String silverCollection = silverCollection(tenantId);
+        String eventType = rules.getEventType();
+        String silverCollection = "silver_" + tenantId;
 
-        long total = mongoTemplate.count(Query.query(UNPROCESSED), bronzeCollection);
+        Criteria filter = UNPROCESSED
+                .and("tenantId").is(tenantId)
+                .and("eventType").is(eventType);
+
+        long total = mongoTemplate.count(Query.query(filter), BRONZE);
         if (total == 0) {
-            log.debug("No unprocessed bronze records for tenant='{}'.", tenantId);
+            log.debug("No unprocessed bronze records for tenant='{}', eventType='{}'.", tenantId, eventType);
             return;
         }
 
         int totalBatches = (int) Math.ceil((double) total / BATCH_SIZE);
-        log.info("Processing tenant='{}': {} record(s), {} batch(es).", tenantId, total, totalBatches);
+        log.info("Processing tenant='{}', eventType='{}': {} record(s), {} batch(es).",
+                tenantId, eventType, total, totalBatches);
 
-        // try-with-resources on ExecutorService (AutoCloseable since Java 19):
-        // close() calls shutdown() + awaitTermination(), ensuring all virtual
-        // threads finish before we log completion or move to the next tenant.
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             for (int page = 0; page < totalBatches; page++) {
                 final long skip = (long) page * BATCH_SIZE;
-                executor.submit(() -> processBatch(rules, bronzeCollection, silverCollection, skip));
+                executor.submit(() -> processBatch(rules, filter, silverCollection, skip));
             }
         }
 
-        log.info("Tenant '{}' silver processing complete.", tenantId);
+        log.info("Tenant '{}', eventType '{}' silver processing complete.", tenantId, eventType);
     }
 
     // -------------------------------------------------------------------------
@@ -112,12 +161,12 @@ public class SilverTransformationScheduler {
     // -------------------------------------------------------------------------
 
     void processBatch(SilverMappingRules rules,
-                      String bronzeCollection,
+                      Criteria filter,
                       String silverCollection,
                       long skip) {
 
-        Query query = Query.query(UNPROCESSED).skip(skip).limit(BATCH_SIZE);
-        List<Document> bronzeRecords = mongoTemplate.find(query, Document.class, bronzeCollection);
+        Query query = Query.query(filter).skip(skip).limit(BATCH_SIZE);
+        List<Document> bronzeRecords = mongoTemplate.find(query, Document.class, BRONZE);
         if (bronzeRecords.isEmpty()) return;
 
         List<Document> silverRecords = bronzeRecords.stream()
@@ -126,16 +175,14 @@ public class SilverTransformationScheduler {
 
         mongoTemplate.insert(silverRecords, silverCollection);
 
-        // Mark the originals as processed to prevent re-processing on subsequent runs.
         List<Object> ids = bronzeRecords.stream().map(d -> d.get("_id")).toList();
         mongoTemplate.updateMulti(
                 Query.query(Criteria.where("_id").in(ids)),
                 Update.update("_processed", true),
-                bronzeCollection
+                BRONZE
         );
 
-        log.debug("Batch done: {} record(s) → '{}' | '{}' marked processed.",
-                silverRecords.size(), silverCollection, bronzeCollection);
+        log.debug("Batch done: {} record(s) → '{}'.", silverRecords.size(), silverCollection);
     }
 
     // -------------------------------------------------------------------------
@@ -208,11 +255,7 @@ public class SilverTransformationScheduler {
     // Collection name helpers (package-private for testability)
     // -------------------------------------------------------------------------
 
-    static String bronzeCollection(String tenantId) {
-        return "bronze_" + tenantId.replaceAll("[^a-zA-Z0-9_]", "_");
-    }
-
     static String silverCollection(String tenantId) {
-        return "silver_" + tenantId.replaceAll("[^a-zA-Z0-9_]", "_");
+        return "silver_" + tenantId;
     }
 }

@@ -1,7 +1,8 @@
 spring:
   data:
     mongodb:
-      uri: ${MONGODB_URI}
+      uri: ${MONGODB_URI:mongodb+srv://edrikfsteiner_db_user:YZ5mdhoAPtQSpaPh@cluster.5tnym0d.mongodb.net/ingestion_security?appName=Cluster}
+
   threads:
     virtual:
       enabled: true
@@ -28,14 +29,7 @@ rate-limit:
   capacity: 1000   # max requests per window per tenant
   minutes: 1       # sliding window size in minutes
 
-spring:
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-      chat:
-        options:
-          model: gpt-4o-mini  # cost-effective model; override with gpt-4o for higher accuracy
 
 silver:
   scheduler:
-    fixed-delay-ms: 300000  # 5 minutes between scheduler runs
+    cron: "0 0 0 * * *"  # todo dia à meia-noite; override para testes ex: "0 * * * * *" (a cada minuto)
