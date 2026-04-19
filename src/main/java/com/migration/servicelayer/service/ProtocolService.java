@@ -4,6 +4,7 @@ import com.migration.servicelayer.dto.ProtocolResponse;
 import com.migration.servicelayer.model.IngestionProtocol;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.repository.ProtocolRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,26 +13,24 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@RequiredArgsConstructor
 @Slf4j
 @Service
 public class ProtocolService {
 
     private final ProtocolRepository protocolRepository;
 
-    public ProtocolService(ProtocolRepository protocolRepository) {
-        this.protocolRepository = protocolRepository;
-    }
-
     public String createProtocol(String tenantId, String eventType) {
         String protocolId = UUID.randomUUID().toString();
 
-        IngestionProtocol protocol = new IngestionProtocol();
-        protocol.setId(protocolId);
-        protocol.setTenantId(tenantId);
-        protocol.setEventType(eventType);
-        protocol.setStatus(ProtocolStatus.QUEUED);
-        protocol.setCreatedAt(LocalDateTime.now());
-        protocol.setUpdatedAt(LocalDateTime.now());
+        IngestionProtocol protocol = IngestionProtocol.builder()
+                .id(protocolId)
+                .tenantId(tenantId)
+                .eventType(eventType)
+                .status(ProtocolStatus.QUEUED)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
 
         protocolRepository.save(protocol);
         log.info("Protocolo de ingestão criado: {} (Tenant: {}, Evento: {})", protocolId, tenantId, eventType);

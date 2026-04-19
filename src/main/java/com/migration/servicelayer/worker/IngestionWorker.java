@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 @Service
 public class IngestionWorker {
 
+    private static final String BRONZE = "bronze";
+
     private final MongoTemplate mongoTemplate;
     private final ProtocolService protocolService;
 
@@ -41,7 +43,7 @@ public class IngestionWorker {
             document.put("payload", message.payload());
             document.put("_processed", false);
 
-            mongoTemplate.insert(document, "bronze");
+            mongoTemplate.insert(document, BRONZE);
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED);
             log.info("Protocolo {}: Dados brutos salvos com sucesso na Camada Bronze", protocolId);
         } catch (Exception e) {

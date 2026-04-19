@@ -1,6 +1,6 @@
 package com.migration.servicelayer.config;
 
-import com.migration.servicelayer.security.filter.RateLimitFilter;
+import com.migration.servicelayer.security.RateLimitFilter;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -36,8 +36,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/dlq/**").permitAll()
                         .requestMatchers("/api/ingest/**").authenticated()
+                        .requestMatchers("/api/dlq/**").authenticated()
+                        .requestMatchers("/api/schema/**").authenticated()
+                        .requestMatchers("/api/transformation/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))

@@ -3,6 +3,7 @@ package com.migration.servicelayer.controller;
 import com.migration.servicelayer.dto.AuthRequest;
 import com.migration.servicelayer.model.ApiClient;
 import com.migration.servicelayer.repository.ApiClientRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,9 +22,12 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.Map;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    private static final String ISSUER = "lakehouse-api";
 
     private final ApiClientRepository apiClientRepository;
     private final PasswordEncoder passwordEncoder;
@@ -31,12 +35,6 @@ public class AuthController {
 
     @Value("${app.security.jwt.expiration-time}")
     private int jwtExpiration;
-
-    public AuthController(ApiClientRepository apiClientRepository, PasswordEncoder passwordEncoder, JwtEncoder jwtEncoder) {
-        this.apiClientRepository = apiClientRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtEncoder = jwtEncoder;
-    }
 
     @PostMapping
     public ResponseEntity<Map<String, String>> authenticate(@RequestBody AuthRequest request) {
@@ -48,7 +46,8 @@ public class AuthController {
         }
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
-                .issuer("lakehouse-ingestion-api")
+                // TODO: lembrar de configurar o issuer depois
+                .issuer(ISSUER)
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(jwtExpiration))
                 .subject(client.getClientId())

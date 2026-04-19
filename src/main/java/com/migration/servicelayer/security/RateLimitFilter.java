@@ -1,7 +1,7 @@
-package com.migration.servicelayer.security.filter;
+package com.migration.servicelayer.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.migration.servicelayer.service.RateLimitingService;
+import com.migration.servicelayer.service.RateLimitService;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
 import jakarta.servlet.FilterChain;
@@ -21,30 +21,14 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Intercepts every request to /api/ingest/** and enforces per-tenant rate limiting.
- *
- * Placement: runs inside the Spring Security filter chain, after
- * BearerTokenAuthenticationFilter, so the SecurityContext is already populated
- * with the authenticated JWT principal.
- *
- * tenantId is always read from the JWT claim — never from the request body or headers.
- *
- * On limit exhaustion: returns HTTP 429 with a JSON error body and the
- * X-Rate-Limit-Retry-After-Seconds response header.
- *
- * NOTE: This bean is NOT auto-registered as a raw servlet filter.
- * RateLimitConfig.rateLimitFilterRegistration() disables that registration so the
- * filter runs exclusively inside the security chain to avoid double execution.
- */
-@Component
-@Slf4j
 @RequiredArgsConstructor
+@Slf4j
+@Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String RETRY_AFTER_HEADER = "X-Rate-Limit-Retry-After-Seconds";
 
-    private final RateLimitingService rateLimitingService;
+    private final RateLimitService service;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -53,10 +37,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         if (!(auth instanceof JwtAuthenticationToken jwtAuth)) {
@@ -71,21 +56,22 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        Bucket bucket = rateLimitingService.resolveBucket(tenantId);
+        Bucket bucket = service.resolveBucket(tenantId);
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 
         if (probe.isConsumed()) {
             filterChain.doFilter(request, response);
         } else {
             long retryAfterSeconds = TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill());
-            log.warn("Rate limit exceeded for tenant '{}'. Retry after {} s.", tenantId, retryAfterSeconds);
+            String message = String.format("Rate limit exceeded for tenant '%s'. Retry after %d seconds.", tenantId, retryAfterSeconds);
 
+            log.warn(message);
             response.setStatus(429);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setHeader(RETRY_AFTER_HEADER, String.valueOf(retryAfterSeconds));
             objectMapper.writeValue(response.getWriter(), Map.of(
                     "error", "Too Many Requests",
-                    "message", "Rate limit exceeded. Retry after " + retryAfterSeconds + " seconds."
+                    "message", message
             ));
         }
     }

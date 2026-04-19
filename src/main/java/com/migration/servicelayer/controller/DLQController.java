@@ -1,6 +1,7 @@
 package com.migration.servicelayer.controller;
 
 import com.migration.servicelayer.service.DLQService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,15 +10,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/dlq")
 public class DLQController {
 
     private final DLQService dlqService;
-
-    public DLQController(DLQService dlqService) {
-        this.dlqService = dlqService;
-    }
 
     @GetMapping("/count")
     public ResponseEntity<Map<String, Long>> count() {

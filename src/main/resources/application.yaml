@@ -1,7 +1,6 @@
 spring:
-  data:
-    mongodb:
-      uri: ${MONGODB_URI:mongodb+srv://edrikfsteiner_db_user:YZ5mdhoAPtQSpaPh@cluster.5tnym0d.mongodb.net/ingestion_security?appName=Cluster}
+  mongodb:
+    uri: ${MONGODB_URI}
 
   threads:
     virtual:
@@ -18,6 +17,7 @@ app:
     jwt:
       secret: ${JWT_SECRET}
       expiration-time: 3600
+
   messaging:
     exchange: ingestion.exchange
     queue-main: lakehouse.bronze.queue
@@ -25,11 +25,10 @@ app:
     routing-key-main: ingestion.routing.key
     routing-key-dlq: ingestion.dlq.routing.key
 
-rate-limit:
-  capacity: 1000   # max requests per window per tenant
-  minutes: 1       # sliding window size in minutes
+  rate-limit:
+    capacity: 1000
+    minutes: 1
 
-
-silver:
-  scheduler:
-    cron: "0 0 0 * * *"  # todo dia à meia-noite; override para testes ex: "0 * * * * *" (a cada minuto)
+  transformation:
+    scheduler:
+      cron: "0 0 0 * * *"
