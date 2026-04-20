@@ -3,6 +3,7 @@ package com.migration.servicelayer.worker;
 import com.migration.servicelayer.dto.IngestionMessage;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.service.ProtocolService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
+@RequiredArgsConstructor
 @Slf4j
 @Service
 public class IngestionWorker {
@@ -20,11 +22,6 @@ public class IngestionWorker {
 
     private final MongoTemplate mongoTemplate;
     private final ProtocolService protocolService;
-
-    public IngestionWorker(MongoTemplate mongoTemplate, ProtocolService protocolService) {
-        this.mongoTemplate = mongoTemplate;
-        this.protocolService = protocolService;
-    }
 
     @RabbitListener(queues = "${app.messaging.queue-main}")
     public void consume(IngestionMessage message, @Header(value = "reprocessed", required = false) boolean reprocessed) {
