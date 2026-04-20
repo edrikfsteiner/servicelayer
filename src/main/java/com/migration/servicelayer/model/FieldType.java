@@ -4,5 +4,6 @@ public enum FieldType {
     STRING,
     INTEGER,
     DOUBLE,
-    DATE
+    DATE,
+    BOOLEAN
 }

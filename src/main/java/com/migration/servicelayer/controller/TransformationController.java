@@ -1,6 +1,6 @@
 package com.migration.servicelayer.controller;
 
-import com.migration.servicelayer.service.TransformationScheduler;
+import com.migration.servicelayer.scheduler.TransformationScheduler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

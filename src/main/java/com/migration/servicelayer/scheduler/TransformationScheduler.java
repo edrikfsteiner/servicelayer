@@ -1,4 +1,4 @@
-package com.migration.servicelayer.service;
+package com.migration.servicelayer.scheduler;
 
 import com.migration.servicelayer.dto.SchemaFieldRule;
 import com.migration.servicelayer.model.FieldType;
@@ -185,6 +185,7 @@ public class TransformationScheduler {
             case INTEGER -> Integer.parseInt(value);
             case DOUBLE -> Double.parseDouble(value);
             case DATE -> LocalDate.parse(value).toString();
+            case BOOLEAN -> Boolean.parseBoolean(value);
         };
     }
 
@@ -193,6 +194,7 @@ public class TransformationScheduler {
         return switch (fieldType) {
             case INTEGER -> 0;
             case DOUBLE -> 0.0;
+            case BOOLEAN -> false;
             default -> "";
         };
     }
