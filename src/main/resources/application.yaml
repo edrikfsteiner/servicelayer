@@ -1,6 +1,6 @@
 spring:
   mongodb:
-    uri: ${MONGODB_URI}
+    uri: mongodb://localhost:27017/lakehouse_db
 
   threads:
     virtual:
@@ -10,7 +10,7 @@ spring:
     host: localhost
     port: 5672
     username: admin
-    password: admin123
+    password: admin
 
 app:
   security:
