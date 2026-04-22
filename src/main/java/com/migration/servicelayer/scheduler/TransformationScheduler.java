@@ -1,12 +1,18 @@
 package com.migration.servicelayer.scheduler;
 
-import com.migration.servicelayer.dto.SchemaFieldRule;
-import com.migration.servicelayer.model.FieldType;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.migration.servicelayer.model.BronzeDocument;
 import com.migration.servicelayer.model.SchemaMappingRules;
+import com.migration.servicelayer.model.SilverDocument;
 import com.migration.servicelayer.repository.SchemaMappingRulesRepository;
+import com.networknt.schema.JsonSchema;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
+import com.networknt.schema.ValidationMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -14,11 +20,14 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -32,11 +41,13 @@ public class TransformationScheduler {
 
     private final MongoTemplate mongoTemplate;
     private final SchemaMappingRulesRepository schemaMappingRulesRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final JsonSchemaFactory schemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
 
     @Scheduled(cron = "${app.transformation.scheduler.cron}")
     public void processAllTenants() {
         Criteria unprocessed = new Criteria().andOperator(
-                Criteria.where("_processed").ne(true),
+                Criteria.where("processed").is(false),
                 Criteria.where("eventType").ne(DEFAULT_EVENT_TYPE)
         );
 
@@ -46,47 +57,32 @@ public class TransformationScheduler {
             return;
         }
 
-        List<SchemaMappingRules> allRules = schemaMappingRulesRepository.findAll();
-        if (allRules.isEmpty()) {
+        List<SchemaMappingRules> allSchemas = schemaMappingRulesRepository.findAll();
+        if (allSchemas.isEmpty()) {
             log.warn("{} registros da camada Bronze pendentes, mas sem esquema registrado.", pendingCount);
             return;
         }
 
-        flagSchemaMissingRecords();
-        log.info("{} registros da bronze pendentes, {} regras encontradas.", pendingCount, allRules.size());
+        log.info("{} registros da bronze pendentes, {} regras encontradas.", pendingCount, allSchemas.size());
 
-        for (SchemaMappingRules rules : allRules) {
+        for (SchemaMappingRules schema : allSchemas) {
             try {
-                processTenant(rules);
+                processTenant(schema);
             } catch (Exception e) {
                 log.error(
                         "Falha na transformação para tenantId='{}', eventType='{}': {}",
-                        rules.getTenantId(), rules.getEventType(), e.getMessage(), e
+                        schema.getTenantId(), schema.getEventType(), e.getMessage(), e
                 );
             }
         }
     }
 
-    void flagSchemaMissingRecords() {
-        Criteria rawDataFilter = new Criteria().andOperator(
-                Criteria.where("_processed").ne(true),
-                Criteria.where("eventType").is(DEFAULT_EVENT_TYPE)
-        );
-
-        long count = mongoTemplate.count(Query.query(rawDataFilter), BRONZE);
-        if (count == 0) {
-            return;
-        }
-
-        log.warn("Encontrados {} registros na collection {} aguardando schema (eventType={}).", count, BRONZE, DEFAULT_EVENT_TYPE);
-    }
-
-    void processTenant(SchemaMappingRules rules) {
-        String tenantId = rules.getTenantId();
-        String eventType = rules.getEventType();
+    private void processTenant(SchemaMappingRules schema) {
+        String tenantId = schema.getTenantId();
+        String eventType = schema.getEventType();
 
         Criteria filter = new Criteria().andOperator(
-                Criteria.where("_processed").ne(true),
+                Criteria.where("processed").is(false),
                 Criteria.where("tenantId").is(tenantId),
                 Criteria.where("eventType").is(eventType)
         );
@@ -107,11 +103,12 @@ public class TransformationScheduler {
         ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
         for (int page = 0; page < totalBatches; page++) {
             final long skip = (long) page * BATCH_SIZE;
-            executor.submit(() -> processBatch(rules, filter, skip));
+            Query query = Query.query(filter).skip(skip).limit(BATCH_SIZE);
+            executor.submit(() -> processBatch(schema, query));
         }
         executor.shutdown();
         try {
-            executor.awaitTermination(Long.MAX_VALUE, java.util.concurrent.TimeUnit.MILLISECONDS);
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("Processamento em batch de transformação interrompido para tenant='{}', eventType='{}'.", tenantId, eventType);
@@ -120,82 +117,66 @@ public class TransformationScheduler {
         log.info("Processamento concluído para tenant='{}', eventType='{}'.", tenantId, eventType);
     }
 
-    void processBatch(SchemaMappingRules rules, Criteria filter, long skip) {
-        Query query = Query.query(filter).skip(skip).limit(BATCH_SIZE);
-        List<Document> bronzeRecords = mongoTemplate.find(query, Document.class, BRONZE);
-        if (bronzeRecords.isEmpty()) {
+    private void processBatch(SchemaMappingRules schema, Query query) {
+        List<BronzeDocument> bronzeDocuments = mongoTemplate.find(query, BronzeDocument.class);
+        if (bronzeDocuments.isEmpty()) {
             return;
         }
 
-        List<Document> silverRecords = bronzeRecords.stream()
-                .map(record -> toSilver(record, rules.getFields()))
+        List<SilverDocument> silverDocuments = bronzeDocuments.stream()
+                .map(document -> toSilver(document, schema))
                 .toList();
 
-        mongoTemplate.insert(silverRecords, SILVER);
+        mongoTemplate.insert(silverDocuments);
 
-        List<Object> ids = bronzeRecords.stream().map(d -> d.get("_id")).toList();
+        List<String> bronzeIds = bronzeDocuments.stream().map(BronzeDocument::getId).toList();
         mongoTemplate.updateMulti(
-                Query.query(Criteria.where("_id").in(ids)),
-                Update.update("_processed", true),
+                Query.query(Criteria.where("_id").in(bronzeIds)),
+                Update.update("processed", true),
                 BRONZE
         );
 
-        log.debug("Batch feito: {} registros para '{}'.", silverRecords.size(), SILVER);
+        log.debug("Batch feito: {} registros para '{}'.", silverDocuments.size(), SILVER);
     }
 
-    Document toSilver(Document bronzeRecord, List<SchemaFieldRule> rules) {
-        Document document = new Document();
-        document.put("_bronzeId",    bronzeRecord.get("_id").toString());
-        document.put("tenantId",     bronzeRecord.getString("tenantId"));
-        document.put("eventType",    bronzeRecord.getString("eventType"));
-        document.put("_processedAt", LocalDateTime.now());
+    private SilverDocument toSilver(BronzeDocument bronzeDocument, SchemaMappingRules schema) {
+        JsonNode bronzePayload = objectMapper.valueToTree(bronzeDocument.getPayload());
+        JsonSchema fields = schemaFactory.getSchema(objectMapper.valueToTree(schema.getFields()));
 
-        Object rawPayload = bronzeRecord.get("payload");
-        if (!(rawPayload instanceof Document payload)) {
-            return document;
+        Set<ValidationMessage> errors = fields.validate(bronzePayload);
+        if (!errors.isEmpty()) {
+            log.error("Payload inválido para tratamento. bronzeId = {}, errors: {}", bronzeDocument.getId(), errors);
         }
 
-        for (SchemaFieldRule rule : rules) {
-            try {
-                document.put(rule.fieldName(), coerce(payload.get(rule.fieldName()), rule));
-            } catch (Exception e) {
-                log.warn(
-                        "Coerção falhada: field='{}', type={}, value='{}': {}",
-                        rule.fieldName(), rule.fieldType(), payload.get(rule.fieldName()), e.getMessage()
-                );
-                document.put(rule.fieldName(), rule.nullable() ? null : defaultValue(rule.fieldType()));
+        Map<String, Object> data = applySchemaDefaults(bronzePayload, schema.getFields());
+
+        return SilverDocument.builder()
+                .bronzeId(bronzeDocument.getId())
+                .tenantId(bronzeDocument.getTenantId())
+                .eventType(bronzeDocument.getEventType())
+                .processedAt(LocalDateTime.now())
+                .data(data)
+                .build();
+    }
+
+    private Map<String, Object> applySchemaDefaults(JsonNode bronzePayload, Map<String, Object> fields) {
+        Map<String, Object> result = objectMapper.convertValue(bronzePayload, new TypeReference<>() {});
+        if (result == null) {
+            result = new HashMap<>();
+        }
+
+        Map<String, Object> properties = (Map<String, Object>) fields.get("properties");
+        if (properties != null) {
+            for (Map.Entry<String, Object> entry : properties.entrySet()) {
+                String fieldName = entry.getKey();
+                Map<String, Object> fieldConfig = (Map<String, Object>) entry.getValue();
+
+                if (!result.containsKey(fieldName) && fieldConfig.containsKey("default")) {
+                    result.put(fieldName, fieldConfig.get("default"));
+                }
             }
         }
 
-        return document;
-    }
-
-    Object coerce(Object raw, SchemaFieldRule rule) {
-        if (raw == null) {
-            return rule.nullable() ? null : defaultValue(rule.fieldType());
-        }
-
-        String value = raw.toString();
-        if (rule.trim()) {
-            value = value.trim();
-        }
-
-        return switch (rule.fieldType()) {
-            case STRING -> value;
-            case INTEGER -> Integer.parseInt(value);
-            case DOUBLE -> Double.parseDouble(value);
-            case DATE -> LocalDate.parse(value).toString();
-            case BOOLEAN -> Boolean.parseBoolean(value);
-        };
-    }
-
-    // TODO: deve-se criar o campo Object defaultValue no SchemaFieldRule e usá-lo para setar o valor do campo
-    private Object defaultValue(FieldType fieldType) {
-        return switch (fieldType) {
-            case INTEGER -> 0;
-            case DOUBLE -> 0.0;
-            case BOOLEAN -> false;
-            default -> "";
-        };
+        return result;
     }
 }

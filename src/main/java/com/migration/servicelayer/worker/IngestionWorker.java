@@ -1,13 +1,13 @@
 package com.migration.servicelayer.worker;
 
 import com.migration.servicelayer.dto.IngestionMessage;
+import com.migration.servicelayer.model.BronzeDocument;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.service.ProtocolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.Document;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
@@ -18,9 +18,7 @@ import java.time.LocalDateTime;
 @Service
 public class IngestionWorker {
 
-    private static final String BRONZE = "bronze";
-
-    private final MongoTemplate mongoTemplate;
+    private final MongoRepository<BronzeDocument, Long> repository;
     private final ProtocolService protocolService;
 
     @RabbitListener(queues = "${app.messaging.queue-main}")
@@ -32,15 +30,16 @@ public class IngestionWorker {
                 protocolService.updateStatus(protocolId, ProtocolStatus.IN_PROGRESS);
             }
 
-            Document document = new Document();
-            document.put("protocolId", protocolId);
-            document.put("tenantId", message.tenantId());
-            document.put("eventType", message.eventType());
-            document.put("createdAt", LocalDateTime.now());
-            document.put("payload", message.payload());
-            document.put("_processed", false);
+            BronzeDocument document = BronzeDocument.builder()
+                    .protocolId(protocolId)
+                    .tenantId(message.tenantId())
+                    .eventType(message.eventType())
+                    .createdAt(LocalDateTime.now())
+                    .payload(message.payload())
+                    .processed(false)
+                    .build();
 
-            mongoTemplate.insert(document, BRONZE);
+            repository.save(document);
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED);
             log.info("Protocolo {}: Dados brutos salvos com sucesso na Camada Bronze", protocolId);
         } catch (Exception e) {

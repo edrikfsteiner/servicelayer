@@ -1,6 +1,5 @@
 package com.migration.servicelayer.model;
 
-import com.migration.servicelayer.dto.SchemaFieldRule;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -10,7 +9,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -29,7 +28,7 @@ public class SchemaMappingRules {
 
     private String tenantId;
     private String eventType;
-    private List<SchemaFieldRule> fields;
+    private Map<String, Object> fields;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

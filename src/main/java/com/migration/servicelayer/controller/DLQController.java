@@ -15,16 +15,16 @@ import java.util.Map;
 @RequestMapping("/api/dlq")
 public class DLQController {
 
-    private final DLQService dlqService;
+    private final DLQService service;
 
     @GetMapping("/count")
     public ResponseEntity<Map<String, Long>> count() {
-        return ResponseEntity.ok(Map.of("messagesInDlq", dlqService.count()));
+        return ResponseEntity.ok(Map.of("messagesInDlq", service.count()));
     }
 
     @PostMapping("/reprocess")
     public ResponseEntity<Map<String, Integer>> reprocessAll() {
-        int count = dlqService.reprocessAll();
+        int count = service.reprocessAll();
         return ResponseEntity.ok(Map.of("reprocessed", count));
     }
 }

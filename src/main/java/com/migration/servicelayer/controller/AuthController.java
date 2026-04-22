@@ -27,14 +27,15 @@ import java.util.Map;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private static final String ISSUER = "lakehouse-api";
-
     private final ApiClientRepository apiClientRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtEncoder jwtEncoder;
 
     @Value("${app.security.jwt.expiration-time}")
     private int jwtExpiration;
+
+    @Value("${app.security.jwt.issuer}")
+    private String jwtIssuer;
 
     @PostMapping
     public ResponseEntity<Map<String, String>> authenticate(@RequestBody AuthRequest request) {
@@ -46,8 +47,7 @@ public class AuthController {
         }
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
-                // TODO: lembrar de configurar o issuer depois
-                .issuer(ISSUER)
+                .issuer(jwtIssuer)
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(jwtExpiration))
                 .subject(client.getClientId())
