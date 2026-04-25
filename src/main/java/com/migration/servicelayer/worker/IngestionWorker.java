@@ -7,7 +7,7 @@ import com.migration.servicelayer.service.ProtocolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @Service
 public class IngestionWorker {
 
-    private final MongoRepository<BronzeDocument, Long> repository;
+    private final MongoTemplate mongoTemplate;
     private final ProtocolService protocolService;
 
     @RabbitListener(queues = "${app.messaging.queue-main}")
@@ -39,7 +39,7 @@ public class IngestionWorker {
                     .processed(false)
                     .build();
 
-            repository.save(document);
+            mongoTemplate.save(document);
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED);
             log.info("Protocolo {}: Dados brutos salvos com sucesso na Camada Bronze", protocolId);
         } catch (Exception e) {
