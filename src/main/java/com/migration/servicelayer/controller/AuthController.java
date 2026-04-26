@@ -1,5 +1,6 @@
 package com.migration.servicelayer.controller;
 
+import com.migration.servicelayer.dto.AuthRegisterRequest;
 import com.migration.servicelayer.dto.AuthRequest;
 import com.migration.servicelayer.model.ApiClient;
 import com.migration.servicelayer.repository.ApiClientRepository;
@@ -9,10 +10,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
-import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,6 +37,25 @@ public class AuthController {
 
     @Value("${app.security.jwt.issuer}")
     private String jwtIssuer;
+
+    @PostMapping("/register")
+    public ResponseEntity<Map<String, String>> register(@RequestBody AuthRegisterRequest request) {
+        if (apiClientRepository.findByClientId(request.clientId()).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "clientId ja existe");
+        }
+
+        ApiClient client = new ApiClient();
+        client.setClientId(request.clientId());
+        client.setClientSecret(passwordEncoder.encode(request.clientSecret()));
+        client.setTenantId(request.tenantId());
+        apiClientRepository.save(client);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "clientId", client.getClientId(),
+                "tenantId", client.getTenantId(),
+                "message", "Cliente criado com sucesso."
+        ));
+    }
 
     @PostMapping
     public ResponseEntity<Map<String, String>> authenticate(@RequestBody AuthRequest request) {
