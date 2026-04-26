@@ -1,6 +1,6 @@
 spring:
   mongodb:
-    uri: mongodb://localhost:27017/lakehouse_db
+    uri: mongodb://root:root@mongodb:27017/lakehouse_db?authSource=admin
 
   threads:
     virtual:
@@ -23,11 +23,13 @@ app:
     exchange: ingestion.exchange
     queue-main: lakehouse.bronze.queue
     queue-dlq: lakehouse.bronze.dlq
+    queue-transformation: lakehouse.silver.queue
     routing-key-main: ingestion.routing.key
     routing-key-dlq: ingestion.dlq.routing.key
+    routing-key-transformation: transformation.routing.key
 
   rate-limit:
-    capacity: 1000
+    capacity: 10000
     minutes: 1
 
   transformation:

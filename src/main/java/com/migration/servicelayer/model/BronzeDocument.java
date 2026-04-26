@@ -22,5 +22,6 @@ public class BronzeDocument {
     private String eventType;
     private LocalDateTime createdAt;
     private Map<String, Object> payload;
+    private boolean queued;
     private boolean processed;
 }

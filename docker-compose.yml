@@ -36,10 +36,12 @@ services:
     container_name: app
     ports:
       - "8080:8080"
+      - "8787:8787"
     environment:
       SPRING_RABBITMQ_HOST: rabbitmq-broker
       MONGODB_URI: mongodb://root:root@mongodb:27017/lakehouse_db?authSource=admin
       JWT_SECRET: ${JWT_SECRET}
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8787"
     depends_on:
       rabbitmq-broker:
         condition: service_healthy

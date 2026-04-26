@@ -23,11 +23,17 @@ public class RabbitMQConfig {
     @Value("${app.messaging.queue-dlq}")
     private String dlqQueue;
 
+    @Value("${app.messaging.queue-transformation}")
+    private String transformationQueue;
+
     @Value("${app.messaging.routing-key-main}")
     private String mainRoutingKey;
 
     @Value("${app.messaging.routing-key-dlq}")
     private String dlqRoutingKey;
+
+    @Value("${app.messaging.routing-key-transformation}")
+    private String transformationRoutingKey;
 
     @Bean
     public Queue dlq() {
@@ -37,6 +43,14 @@ public class RabbitMQConfig {
     @Bean
     public Queue mainQueue() {
         return QueueBuilder.durable(mainQueue)
+                .withArgument("x-dead-letter-exchange", exchange)
+                .withArgument("x-dead-letter-routing-key", dlqRoutingKey)
+                .build();
+    }
+
+    @Bean
+    public Queue transformationQueue() {
+        return QueueBuilder.durable(transformationQueue)
                 .withArgument("x-dead-letter-exchange", exchange)
                 .withArgument("x-dead-letter-routing-key", dlqRoutingKey)
                 .build();
@@ -55,6 +69,11 @@ public class RabbitMQConfig {
     @Bean
     public Binding bindingDLQ(Queue dlq, DirectExchange exchange) {
         return BindingBuilder.bind(dlq).to(exchange).with(dlqRoutingKey);
+    }
+
+    @Bean
+    public Binding bindingTransformationQueue(Queue transformationQueue, DirectExchange exchange) {
+        return BindingBuilder.bind(transformationQueue).to(exchange).with(transformationRoutingKey);
     }
 
     @Bean

@@ -65,7 +65,7 @@ public class SchemaService {
         schema.setFields(fields);
         schema.setUpdatedAt(LocalDateTime.now());
 
-        return toDto(schema);
+        return toDto(repository.save(schema));
     }
 
     public List<SchemaMappingRulesResponse> listSchemas(JwtAuthenticationToken token) {
