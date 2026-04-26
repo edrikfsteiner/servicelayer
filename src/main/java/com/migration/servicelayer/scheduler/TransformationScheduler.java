@@ -88,7 +88,6 @@ public class TransformationScheduler {
     private void sendBatches(int batches, Criteria filter, String tenantId, String eventType) {
         for (int page = 0; page < batches; page++) {
             Query query = query(filter).limit(BATCH_SIZE);
-            query.fields().include("_id");
 
             List<BronzeDocument> batch = mongoTemplate.find(query, BronzeDocument.class);
             if (batch.isEmpty()) {
@@ -102,8 +101,9 @@ public class TransformationScheduler {
                     BRONZE
             );
 
-            TransformationBatchMessage message = new TransformationBatchMessage(tenantId, eventType, ids);
+            TransformationBatchMessage message = new TransformationBatchMessage(tenantId, eventType, batch);
             rabbitTemplate.convertAndSend(exchange, transformationRoutingKey, message);
+            log.info("Enviado batch com {} registros", ids.size());
         }
     }
 }

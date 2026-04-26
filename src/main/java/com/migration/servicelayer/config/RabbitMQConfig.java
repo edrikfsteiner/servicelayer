@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitMQConfig {
 
     @Value("${app.messaging.exchange}")
-    private String exchange;
+    private String exchangeName;
 
     @Value("${app.messaging.queue-main}")
     private String mainQueue;
@@ -43,7 +43,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue mainQueue() {
         return QueueBuilder.durable(mainQueue)
-                .withArgument("x-dead-letter-exchange", exchange)
+                .withArgument("x-dead-letter-exchange", exchangeName)
                 .withArgument("x-dead-letter-routing-key", dlqRoutingKey)
                 .build();
     }
@@ -51,14 +51,14 @@ public class RabbitMQConfig {
     @Bean
     public Queue transformationQueue() {
         return QueueBuilder.durable(transformationQueue)
-                .withArgument("x-dead-letter-exchange", exchange)
+                .withArgument("x-dead-letter-exchange", exchangeName)
                 .withArgument("x-dead-letter-routing-key", dlqRoutingKey)
                 .build();
     }
 
     @Bean
     public DirectExchange exchange() {
-        return new DirectExchange(exchange);
+        return new DirectExchange(exchangeName);
     }
 
     @Bean

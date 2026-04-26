@@ -36,6 +36,7 @@ public class IngestionWorker {
                     .eventType(message.eventType())
                     .createdAt(LocalDateTime.now())
                     .payload(message.payload())
+                    .queued(false)
                     .processed(false)
                     .build();
 

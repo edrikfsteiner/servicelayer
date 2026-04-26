@@ -11,6 +11,11 @@ spring:
     port: 5672
     username: admin
     password: admin
+    listener:
+      simple:
+        concurrency: 1
+        max-concurrency: 50
+        prefetch: 100
 
 app:
   security:

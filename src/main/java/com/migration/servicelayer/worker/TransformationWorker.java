@@ -11,6 +11,7 @@ import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+import jakarta.validation.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -52,7 +53,7 @@ public class TransformationWorker {
     public void processTransformationBatch(TransformationBatchMessage message) {
         log.info(
                 "Recebido lote para tenant='{}', eventType='{}' com {} registros.",
-                message.tenantId(), message.eventType(), message.bronzeIds().size()
+                message.tenantId(), message.eventType(), message.bronzeDocuments().size()
         );
 
         Query schemaQuery = query(
@@ -66,16 +67,7 @@ public class TransformationWorker {
             return;
         }
 
-        List<BronzeDocument> bronzeDocuments = mongoTemplate.find(
-                query(where("_id").in(message.bronzeIds())),
-                BronzeDocument.class
-        );
-
-        if (bronzeDocuments.isEmpty()) {
-            return;
-        }
-
-        List<SilverDocument> silverDocuments = bronzeDocuments.stream()
+        List<SilverDocument> silverDocuments = message.bronzeDocuments().stream()
                 .map(document -> toSilver(document, schema))
                 .toList();
 
@@ -85,8 +77,9 @@ public class TransformationWorker {
             mongoTemplate.insert(silverDocuments);
         }
 
+        List<String> bronzeIds = message.bronzeDocuments().stream().map(BronzeDocument::getId).toList();
         mongoTemplate.updateMulti(
-                query(where("_id").in(message.bronzeIds())),
+                query(where("_id").in(bronzeIds)),
                 new Update().set("processed", true).set("queued", false),
                 BRONZE
         );
@@ -100,7 +93,9 @@ public class TransformationWorker {
 
         Set<ValidationMessage> errors = fields.validate(bronzePayload);
         if (!errors.isEmpty()) {
-            log.error("Payload inválido para tratamento. bronzeId = {}, errors: {}", bronzeDocument.getId(), errors);
+            throw new ValidationException(String.format(
+                    "Payload inválido para tratamento. bronzeId = %s, errors: %s", bronzeDocument.getId(), errors
+            ));
         }
 
         Map<String, Object> data = applySchemaRules(bronzePayload, schema.getFields());
@@ -165,8 +160,9 @@ public class TransformationWorker {
         }
 
         if (transforms instanceof Iterable<?> iterable) {
-            iterable.forEach(transform -> applyTransform(value, transform));
-            return value;
+            Object transformed = value;
+            iterable.forEach(transform -> applyTransform(transformed, transform));
+            return transformed;
         }
 
         return applyTransform(value, transforms);
