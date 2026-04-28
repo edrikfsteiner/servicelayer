@@ -21,8 +21,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -161,7 +165,9 @@ public class TransformationWorker {
 
         if (transforms instanceof Iterable<?> iterable) {
             Object transformed = value;
-            iterable.forEach(transform -> applyTransform(transformed, transform));
+            for (Object transform : iterable) {
+                transformed = applyTransform(transformed, transform);
+            }
             return transformed;
         }
 
@@ -201,19 +207,40 @@ public class TransformationWorker {
             return;
         }
 
-        Criteria criteria =
+        String primaryKeyHash = primaryKeyHash(primaryKeyValues);
+
+        Criteria criteria = 
                 where("tenantId").is(silverDocument.getTenantId())
-                .and("eventType").is(silverDocument.getEventType());
-        primaryKeyValues.forEach((fieldName, value) -> criteria.and("data." + fieldName).is(value));
+                .and("eventType").is(silverDocument.getEventType())
+                .and("primaryKeyHash").is(primaryKeyHash);
 
         Update update = new Update()
                 .set("bronzeId", silverDocument.getBronzeId())
                 .set("tenantId", silverDocument.getTenantId())
                 .set("eventType", silverDocument.getEventType())
+                .set("primaryKeyHash", primaryKeyHash)
                 .set("processedAt", silverDocument.getProcessedAt())
                 .set("data", silverDocument.getData());
 
         mongoTemplate.upsert(query(criteria), update, SilverDocument.class);
+    }
+
+    private String primaryKeyHash(Map<String, Object> primaryKeyValues) {
+        StringBuilder source = new StringBuilder();
+        primaryKeyValues.forEach((fieldName, value) -> {
+            String text = String.valueOf(value);
+            source.append(fieldName.length()).append(':').append(fieldName)
+                    .append('=')
+                    .append(text.length()).append(':').append(text)
+                    .append(';');
+        });
+
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(source.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 indisponivel para primaryKeyHash", e);
+        }
     }
 
     boolean hasPrimaryKey(Map<String, Object> fields) {

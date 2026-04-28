@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 @RequiredArgsConstructor
@@ -44,5 +45,19 @@ public class IngestionController {
     public ResponseEntity<ProtocolResponse> status(@PathVariable String protocolId, JwtAuthenticationToken token) {
         String tenantId = (String) token.getTokenAttributes().get("tenantId");
         return ResponseEntity.ok(protocolService.getStatus(protocolId, tenantId));
+    }
+
+    @PostMapping("/batch")
+    public ResponseEntity<IngestionResponse> ingestBatch(
+            @RequestHeader(value = "X-Event-Type", defaultValue = "raw_data") String eventType,
+            @RequestBody List<Map<String, Object>> payloads,
+            JwtAuthenticationToken token
+    ) {
+        String tenantId = (String) token.getTokenAttributes().get("tenantId");
+        return ResponseEntity.accepted().body(new IngestionResponse(
+                service.publishBatchToQueue(tenantId, eventType, payloads),
+                ProtocolStatus.QUEUED.toString(),
+                "Lote recebido e enfileirado para processamento."
+        ));
     }
 }

@@ -1,6 +1,6 @@
 spring:
   mongodb:
-    uri: mongodb://root:root@mongodb:27017/lakehouse_db?authSource=admin
+    uri: mongodb://root:root@localhost:27017/lakehouse_db?authSource=admin
 
   threads:
     virtual:
@@ -13,9 +13,9 @@ spring:
     password: admin
     listener:
       simple:
-        concurrency: 1
-        max-concurrency: 50
-        prefetch: 100
+        concurrency: 2
+        max-concurrency: 2
+        prefetch: 1
 
 app:
   security:

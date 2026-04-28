@@ -20,6 +20,7 @@ public class SilverDocument {
     private String bronzeId;
     private String tenantId;
     private String eventType;
+    private String primaryKeyHash;
     private LocalDateTime processedAt;
     private Map<String, Object> data;
 }

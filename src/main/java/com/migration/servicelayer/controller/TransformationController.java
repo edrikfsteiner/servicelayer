@@ -1,6 +1,6 @@
 package com.migration.servicelayer.controller;
 
-import com.migration.servicelayer.scheduler.TransformationScheduler;
+import com.migration.servicelayer.service.TransformationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,11 +12,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/transformation")
 public class TransformationController {
 
-    private final TransformationScheduler scheduler;
+    private final TransformationService service;
 
     @PostMapping("/run")
     public ResponseEntity<String> forceRun() {
-        scheduler.processAllTenants();
-        return ResponseEntity.accepted().body("Transformação de dados iniciada.");
+        service.runAsync();
+        return ResponseEntity.accepted().body("Transformacao de dados iniciada.");
     }
 }
