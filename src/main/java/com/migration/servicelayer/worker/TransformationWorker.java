@@ -15,6 +15,8 @@ import jakarta.validation.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -26,8 +28,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HexFormat;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +69,7 @@ public class TransformationWorker {
                 .and("eventType").is(message.eventType())
         );
 
+        //essa validação  de se tem ou nao schema podia ta na run da silver, pq ele ta enfilerando e fica estourando erro.
         SchemaMappingRules schema = mongoTemplate.findOne(schemaQuery, SchemaMappingRules.class);
         if (schema == null) {
             log.error("Schema não encontrado para tenant='{}' e eventType='{}'. Abortando batch.", message.tenantId(), message.eventType());
@@ -76,7 +81,7 @@ public class TransformationWorker {
                 .toList();
 
         if (hasPrimaryKey(schema.getFields())) {
-            silverDocuments.forEach(silverDocument -> upsertSilver(silverDocument, schema));
+            saveSilverWithPrimaryKey(silverDocuments, schema);
         } else {
             mongoTemplate.insert(silverDocuments);
         }
@@ -91,10 +96,12 @@ public class TransformationWorker {
         log.debug("Batch concluído com sucesso: {} registros inseridos em '{}'.", silverDocuments.size(), SILVER);
     }
 
+    // acho que da de criar uma classe separada pra fazer essa transformação, pq ta ficando grande e tem bastante regra de negócio.
     private SilverDocument toSilver(BronzeDocument bronzeDocument, SchemaMappingRules schema) {
         JsonNode bronzePayload = objectMapper.valueToTree(bronzeDocument.getPayload());
         JsonSchema fields = schemaFactory.getSchema(objectMapper.valueToTree(schema.getFields()));
 
+        //não sei se isso ta funcionado, porque deu uns erro de squema e não tem nada na fila do dql.
         Set<ValidationMessage> errors = fields.validate(bronzePayload);
         if (!errors.isEmpty()) {
             throw new ValidationException(String.format(
@@ -196,33 +203,117 @@ public class TransformationWorker {
         return sourceField;
     }
 
-    private void upsertSilver(SilverDocument silverDocument, SchemaMappingRules schema) {
-        Map<String, Object> primaryKeyValues = primaryKeyValues(silverDocument.getData(), schema.getFields());
-        if (primaryKeyValues.isEmpty()) {
-            log.warn(
-                    "Registro bronzeId='{}' sem valor de primary key para tenant='{}', eventType='{}'.",
-                    silverDocument.getBronzeId(), silverDocument.getTenantId(), silverDocument.getEventType()
-            );
-            mongoTemplate.insert(silverDocument);
+    private void saveSilverWithPrimaryKey(List<SilverDocument> silverDocuments, SchemaMappingRules schema) {
+        Map<String, SilverDocument> documentsByHash = new LinkedHashMap<>();
+        List<SilverDocument> documentsWithoutPrimaryKey = new ArrayList<>();
+
+        for (SilverDocument silverDocument : silverDocuments) {
+            Map<String, Object> primaryKeyValues = primaryKeyValues(silverDocument.getData(), schema.getFields());
+            if (primaryKeyValues.isEmpty()) {
+                log.warn(
+                        "Registro bronzeId='{}' sem valor de primary key para tenant='{}', eventType='{}'.",
+                        silverDocument.getBronzeId(), silverDocument.getTenantId(), silverDocument.getEventType()
+                );
+                documentsWithoutPrimaryKey.add(silverDocument);
+                continue;
+            }
+
+            String primaryKeyHash = primaryKeyHash(primaryKeyValues);
+            silverDocument.setPrimaryKeyHash(primaryKeyHash);
+            documentsByHash.put(primaryKeyHash, silverDocument);
+        }
+
+        if (!documentsWithoutPrimaryKey.isEmpty()) {
+            mongoTemplate.insert(documentsWithoutPrimaryKey, SilverDocument.class);
+        }
+
+        if (documentsByHash.isEmpty()) {
             return;
         }
 
-        String primaryKeyHash = primaryKeyHash(primaryKeyValues);
+        SilverDocument firstDocument = documentsByHash.values().iterator().next();
+        Set<String> existingHashes = existingPrimaryKeyHashes(
+                firstDocument.getTenantId(),
+                firstDocument.getEventType(),
+                documentsByHash.keySet()
+        );
 
-        Criteria criteria = 
-                where("tenantId").is(silverDocument.getTenantId())
+        List<SilverDocument> newDocuments = new ArrayList<>();
+        List<SilverDocument> existingDocuments = new ArrayList<>();
+        documentsByHash.forEach((primaryKeyHash, silverDocument) -> {
+            if (existingHashes.contains(primaryKeyHash)) {
+                existingDocuments.add(silverDocument);
+            } else {
+                newDocuments.add(silverDocument);
+            }
+        });
+
+        insertNewSilverDocuments(newDocuments);
+        updateExistingSilverDocuments(existingDocuments);
+    }
+
+    private Set<String> existingPrimaryKeyHashes(String tenantId, String eventType, Collection<String> primaryKeyHashes) {
+        Query query = query(
+                where("tenantId").is(tenantId)
+                .and("eventType").is(eventType)
+                .and("primaryKeyHash").in(primaryKeyHashes)
+        );
+        query.fields().include("primaryKeyHash");
+
+        Set<String> existingHashes = new HashSet<>();
+        mongoTemplate.find(query, SilverDocument.class)
+                .forEach(document -> existingHashes.add(document.getPrimaryKeyHash()));
+        return existingHashes;
+    }
+
+    private void insertNewSilverDocuments(List<SilverDocument> silverDocuments) {
+        if (silverDocuments.isEmpty()) {
+            return;
+        }
+
+        try {
+            mongoTemplate.insert(silverDocuments, SilverDocument.class);
+        } catch (DuplicateKeyException e) {
+            log.warn("Duplicidade detectada ao inserir lote silver. Reexecutando {} registros como upsert.", silverDocuments.size());
+            upsertSilverDocuments(silverDocuments);
+        }
+    }
+
+    private void updateExistingSilverDocuments(List<SilverDocument> silverDocuments) {
+        if (silverDocuments.isEmpty()) {
+            return;
+        }
+
+        BulkOperations bulkOperations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, SilverDocument.class);
+        silverDocuments.forEach(silverDocument ->
+                bulkOperations.updateOne(silverQuery(silverDocument), silverUpdate(silverDocument))
+        );
+        bulkOperations.execute();
+    }
+
+    private void upsertSilverDocuments(List<SilverDocument> silverDocuments) {
+        BulkOperations bulkOperations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, SilverDocument.class);
+        silverDocuments.forEach(silverDocument ->
+                bulkOperations.upsert(silverQuery(silverDocument), silverUpdate(silverDocument))
+        );
+        bulkOperations.execute();
+    }
+
+    private Query silverQuery(SilverDocument silverDocument) {
+        Criteria criteria = where("tenantId").is(silverDocument.getTenantId())
                 .and("eventType").is(silverDocument.getEventType())
-                .and("primaryKeyHash").is(primaryKeyHash);
+                .and("primaryKeyHash").is(silverDocument.getPrimaryKeyHash());
+        return query(criteria);
+    }
 
-        Update update = new Update()
+    private Update silverUpdate(SilverDocument silverDocument) {
+        return new Update()
                 .set("bronzeId", silverDocument.getBronzeId())
                 .set("tenantId", silverDocument.getTenantId())
                 .set("eventType", silverDocument.getEventType())
-                .set("primaryKeyHash", primaryKeyHash)
+                .set("primaryKeyHash", silverDocument.getPrimaryKeyHash())
                 .set("processedAt", silverDocument.getProcessedAt())
                 .set("data", silverDocument.getData());
-
-        mongoTemplate.upsert(query(criteria), update, SilverDocument.class);
     }
 
     private String primaryKeyHash(Map<String, Object> primaryKeyValues) {

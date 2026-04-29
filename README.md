@@ -15,6 +15,16 @@ docker logs -f rabbitmq
 docker logs -f mongodb
 ```
 
+## Criar indice obrigatorio da Silver
+
+Depois de subir o MongoDB e antes de rodar uma transformacao grande, crie o indice unico da camada Silver:
+
+```powershell
+docker exec mongodb mongosh "mongodb://root:root@localhost:27017/lakehouse_db?authSource=admin" --quiet --eval "db.silver.createIndex({ tenantId: 1, eventType: 1, primaryKeyHash: 1 }, { unique: true, name: 'silver_tenant_event_primary_key_hash_unique', partialFilterExpression: { primaryKeyHash: { `$type: 'string' } } })"
+```
+
+Esse indice garante a idempotencia da Silver por `tenantId + eventType + primaryKeyHash` e evita duplicidade real quando o mesmo registro for reprocessado.
+
 ## Limpar tudo e iniciar do zero
 
 Reset completo:
