@@ -41,12 +41,6 @@ public class IngestionController {
         ));
     }
 
-    @GetMapping("/status/{protocolId}")
-    public ResponseEntity<ProtocolResponse> status(@PathVariable String protocolId, JwtAuthenticationToken token) {
-        String tenantId = (String) token.getTokenAttributes().get("tenantId");
-        return ResponseEntity.ok(protocolService.getStatus(protocolId, tenantId));
-    }
-
     @PostMapping("/batch")
     public ResponseEntity<IngestionResponse> ingestBatch(
             @RequestHeader(value = "X-Event-Type", defaultValue = "raw_data") String eventType,
@@ -59,5 +53,11 @@ public class IngestionController {
                 ProtocolStatus.QUEUED.toString(),
                 "Lote recebido e enfileirado para processamento."
         ));
+    }
+
+    @GetMapping("/status/{protocolId}")
+    public ResponseEntity<ProtocolResponse> status(@PathVariable String protocolId, JwtAuthenticationToken token) {
+        String tenantId = (String) token.getTokenAttributes().get("tenantId");
+        return ResponseEntity.ok(protocolService.getStatus(protocolId, tenantId));
     }
 }

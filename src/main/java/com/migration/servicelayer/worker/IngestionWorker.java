@@ -3,18 +3,23 @@ package com.migration.servicelayer.worker;
 import com.migration.servicelayer.dto.IngestionBatchMessage;
 import com.migration.servicelayer.dto.IngestionMessage;
 import com.migration.servicelayer.model.BronzeDocument;
+import com.migration.servicelayer.model.IngestionError;
 import com.migration.servicelayer.model.ProtocolStatus;
 import com.migration.servicelayer.service.ProtocolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.data.mongodb.BulkOperationException;
+import org.springframework.data.mongodb.core.BulkOperations;
+import org.springframework.data.mongodb.core.BulkOperations.BulkMode;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -55,10 +60,8 @@ public class IngestionWorker {
     }
 
     @RabbitHandler
-    public void consumeBatch(
-            IngestionBatchMessage message,
-            @Header(value = "reprocessed", required = false) boolean reprocessed
-    ) {
+    public void consumeBatch(IngestionBatchMessage message, @Header(value = "reprocessed", required = false) boolean reprocessed) {
+        List<Map<String, Object>> payloads = message.payloads();
         String protocolId = message.protocolId();
 
         try {
@@ -66,25 +69,42 @@ public class IngestionWorker {
                 protocolService.updateStatus(protocolId, ProtocolStatus.IN_PROGRESS);
             }
 
-            LocalDateTime now = LocalDateTime.now();
-            List<BronzeDocument> documents = message.payloads().stream()
+            List<BronzeDocument> bronzeDocuments = payloads.stream()
                     .map(payload -> BronzeDocument.builder()
                             .protocolId(protocolId)
                             .tenantId(message.tenantId())
                             .eventType(message.eventType())
-                            .createdAt(now)
+                            .createdAt(LocalDateTime.now())
                             .payload(payload)
                             .queued(false)
                             .processed(false)
-                            .build())
-                    .toList();
+                            .build()
+                    ).toList();
 
-            mongoTemplate.insert(documents, BronzeDocument.class);
+            BulkOperations bulkOps = mongoTemplate.bulkOps(BulkMode.UNORDERED, BronzeDocument.class);
+            bulkOps.insert(bronzeDocuments);
+            bulkOps.execute();
+
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED);
+            log.info("Protocolo {}: Lote com {} registros salvo com sucesso na Camada Bronze", protocolId, bronzeDocuments.size());
+        } catch (BulkOperationException e) {
+            List<IngestionError> ingestionErrors = e.getErrors().stream()
+                    .map(error -> IngestionError.builder()
+                            .protocolId(protocolId)
+                            .tenantId(message.tenantId())
+                            .eventType(message.eventType())
+                            .createdAt(LocalDateTime.now())
+                            .errorMessage(error.getMessage())
+                            .payload(payloads.get(error.getIndex()))
+                            .build()
+                    ).toList();
+
+            mongoTemplate.insert(ingestionErrors);
+            protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED_WITH_ERRORS);
+
             log.info(
-                    "Protocolo {}: Lote com {} registros salvo com sucesso na Camada Bronze",
-                    protocolId,
-                    documents.size()
+                    "Protocolo {}: Lote processado parcialmente: {} com sucesso, {} falhos.",
+                    protocolId, e.getResult().getInsertedCount(), e.getErrors().size()
             );
         } catch (Exception e) {
             log.error("Protocolo {}: Erro ao salvar lote na Camada Bronze - {}", protocolId, e.getMessage());

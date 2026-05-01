@@ -13,6 +13,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import static com.migration.servicelayer.dto.ProtocolResponse.toDto;
+
 @RequiredArgsConstructor
 @Slf4j
 @Service
@@ -41,14 +43,7 @@ public class ProtocolService {
         IngestionProtocol protocol = protocolRepository.findByIdAndTenantId(protocolId, tenantId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Protocolo não encontrado"));
 
-        return new ProtocolResponse(
-                protocol.getId(),
-                protocol.getTenantId(),
-                protocol.getEventType(),
-                protocol.getStatus(),
-                protocol.getCreatedAt(),
-                protocol.getUpdatedAt()
-        );
+        return toDto(protocol);
     }
 
     public void updateStatus(String protocolId, ProtocolStatus status) {

@@ -1,6 +1,6 @@
 spring:
   mongodb:
-    uri: mongodb://root:root@localhost:27017/lakehouse_db?authSource=admin
+    uri: mongodb://root:root@mongodb:27017/lakehouse_db?authSource=admin
 
   threads:
     virtual:
@@ -16,11 +16,15 @@ spring:
         concurrency: 2
         max-concurrency: 2
         prefetch: 1
+        retry:
+          enabled: true
+          max-attempts: 3
+          stateless: true
 
 app:
   security:
     jwt:
-      secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef}
+      secret: 0123456789abcdefghij
       expiration-time: 3600
       issuer: lakehouse-api
 
@@ -39,4 +43,4 @@ app:
 
   transformation:
     scheduler:
-      cron: "0 0 0 * 12 *"
+      cron: "0 0 0 * * *"

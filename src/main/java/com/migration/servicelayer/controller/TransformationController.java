@@ -17,6 +17,6 @@ public class TransformationController {
     @PostMapping("/run")
     public ResponseEntity<String> forceRun() {
         service.runAsync();
-        return ResponseEntity.accepted().body("Transformacao de dados iniciada.");
+        return ResponseEntity.accepted().body("Transformação de dados iniciada.");
     }
 }

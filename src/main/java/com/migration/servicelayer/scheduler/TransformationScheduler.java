@@ -25,7 +25,7 @@ import static org.springframework.data.mongodb.core.query.Update.update;
 @Component
 public class TransformationScheduler {
 
-    private static final int BATCH_SIZE = 1000;
+    private static final int BATCH_SIZE = 10000;
     private static final String BRONZE = "bronze";
     private static final String DEFAULT_EVENT_TYPE = "raw_data";
 
@@ -64,14 +64,11 @@ public class TransformationScheduler {
     }
 
     private void queueTenantBatches(SchemaMappingRules schema) {
-        String tenantId = schema.getTenantId();
-        String eventType = schema.getEventType();
-
         Criteria filter = new Criteria().andOperator(
                 where("processed").is(false),
                 where("queued").is(false),
-                where("tenantId").is(tenantId),
-                where("eventType").is(eventType)
+                where("tenantId").is(schema.getTenantId()),
+                where("eventType").is(schema.getEventType())
         );
 
         long total = mongoTemplate.count(query(filter), BRONZE);
@@ -80,12 +77,15 @@ public class TransformationScheduler {
         }
 
         int totalBatches = (int) Math.ceil((double) total / BATCH_SIZE);
-        log.info("Enfileirando tenant='{}', eventType='{}': {} registros em {} batches.", tenantId, eventType, total, totalBatches);
+        log.info(
+                "Enfileirando tenant='{}', eventType='{}': {} registros em {} batches.",
+                schema.getTenantId(), schema.getEventType(), total, totalBatches
+        );
 
-        sendBatches(totalBatches, filter, tenantId, eventType);
+        sendBatches(totalBatches, filter, schema);
     }
 
-    private void sendBatches(int batches, Criteria filter, String tenantId, String eventType) {
+    private void sendBatches(int batches, Criteria filter, SchemaMappingRules schema) {
         for (int page = 0; page < batches; page++) {
             Query query = query(filter).limit(BATCH_SIZE);
 
@@ -101,7 +101,7 @@ public class TransformationScheduler {
                     BRONZE
             );
 
-            TransformationBatchMessage message = new TransformationBatchMessage(tenantId, eventType, batch);
+            TransformationBatchMessage message = new TransformationBatchMessage(schema, batch);
             rabbitTemplate.convertAndSend(exchange, transformationRoutingKey, message);
             log.info("Enviado batch com {} registros", ids.size());
         }
