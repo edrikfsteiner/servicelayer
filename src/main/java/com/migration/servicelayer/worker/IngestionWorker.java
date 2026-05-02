@@ -99,7 +99,7 @@ public class IngestionWorker {
                             .build()
                     ).toList();
 
-            mongoTemplate.insert(ingestionErrors);
+            mongoTemplate.insert(ingestionErrors, BronzeDocument.class);
             protocolService.updateStatus(protocolId, ProtocolStatus.COMPLETED_WITH_ERRORS);
 
             log.info(

@@ -73,11 +73,11 @@ public class TransformationWorker {
         if (hasPrimaryKey(schema.getFields())) {
             saveSilverWithPrimaryKey(silverDocuments, schema);
         } else {
-            mongoTemplate.insert(silverDocuments);
+            mongoTemplate.insert(silverDocuments, SilverDocument.class);
         }
 
         if (!transformationErrors.isEmpty()) {
-            mongoTemplate.insert(transformationErrors);
+            mongoTemplate.insert(transformationErrors, TransformationError.class);
             log.warn(
                     "Lote parcialmente validado: {} registros processados com falha de esquema e enviados para quarentena.",
                     transformationErrors.size()
@@ -281,7 +281,7 @@ public class TransformationWorker {
             return;
         }
 
-        mongoTemplate.insert(documents);
+        mongoTemplate.insert(documents, SilverDocument.class);
     }
 
     private void updateExistingDocuments(List<SilverDocument> documents) {
