@@ -25,7 +25,7 @@ import static org.springframework.data.mongodb.core.query.Update.update;
 @Component
 public class TransformationScheduler {
 
-    private static final int BATCH_SIZE = 10000;
+    private static final int BATCH_SIZE = 500;
     private static final String BRONZE = "bronze";
     private static final String DEFAULT_EVENT_TYPE = "raw_data";
 
