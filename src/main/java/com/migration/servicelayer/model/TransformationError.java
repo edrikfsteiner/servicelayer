@@ -1,8 +1,10 @@
 package com.migration.servicelayer.model;
 
 import com.networknt.schema.ValidationMessage;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -13,6 +15,8 @@ import java.util.Set;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Document(collection = "transformation_errors")
 public class TransformationError {
     @Id

@@ -66,23 +66,9 @@ public class TransformationWorker {
                 schema.getTenantId(), schema.getEventType(), message.bronzeDocuments().size()
         );
 
-        message.bronzeDocuments().forEach(bronzeDocument -> {
-            try {
-                JsonNode bronzePayload = objectMapper.valueToTree(bronzeDocument.getPayload());
-                validateSchema(jsonSchemaFields, bronzePayload);
-                Map<String, Object> data = applySchemaRules(bronzePayload, schema.getFields());
-                silverDocuments.add(toSilver(bronzeDocument, data));
-            } catch (SchemaValidationException e) {
-                transformationErrors.add(TransformationError.builder()
-                        .bronzeId(bronzeDocument.getId())
-                        .tenantId(schema.getTenantId())
-                        .eventType(schema.getEventType())
-                        .processedAt(LocalDateTime.now())
-                        .errors(e.getValidationErrors())
-                        .build()
-                );
-            }
-        });
+        message.bronzeDocuments().forEach(bronzeDocument ->
+                processToSilver(bronzeDocument, jsonSchemaFields, schema, silverDocuments, transformationErrors)
+        );
 
         if (hasPrimaryKey(schema.getFields())) {
             saveSilverWithPrimaryKey(silverDocuments, schema);
@@ -98,17 +84,30 @@ public class TransformationWorker {
             );
         }
 
-        List<String> bronzeIds = message.bronzeDocuments().stream().map(BronzeDocument::getId).toList();
-        mongoTemplate.updateMulti(
-                query(where("_id").in(bronzeIds)),
-                new Update().set("processed", true).set("queued", false),
-                BRONZE
-        );
+        updateQueuedAndProcessedBronze(message);
 
         log.info(
                 "Batch concluído: {} inseridos na '{}', {} erros.",
                 silverDocuments.size(), SILVER, transformationErrors.size()
         );
+    }
+
+    private void processToSilver(BronzeDocument bronzeDocument, JsonSchema jsonSchemaFields, SchemaMappingRules schema, List<SilverDocument> silverDocuments, List<TransformationError> transformationErrors) {
+        try {
+            JsonNode bronzePayload = objectMapper.valueToTree(bronzeDocument.getPayload());
+            validateSchema(jsonSchemaFields, bronzePayload);
+            Map<String, Object> data = applySchemaRules(bronzePayload, schema.getFields());
+            silverDocuments.add(toSilver(bronzeDocument, data));
+        } catch (SchemaValidationException e) {
+            transformationErrors.add(TransformationError.builder()
+                    .bronzeId(bronzeDocument.getId())
+                    .tenantId(schema.getTenantId())
+                    .eventType(schema.getEventType())
+                    .processedAt(LocalDateTime.now())
+                    .errors(e.getValidationErrors())
+                    .build()
+            );
+        }
     }
 
     private void validateSchema(JsonSchema schemaFields, JsonNode bronzePayload) {
@@ -363,5 +362,14 @@ public class TransformationWorker {
         }
 
         return values;
+    }
+
+    private void updateQueuedAndProcessedBronze(TransformationBatchMessage message) {
+        List<String> bronzeIds = message.bronzeDocuments().stream().map(BronzeDocument::getId).toList();
+        mongoTemplate.updateMulti(
+                query(where("_id").in(bronzeIds)),
+                new Update().set("processed", true).set("queued", false),
+                BRONZE
+        );
     }
 }

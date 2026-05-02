@@ -1,7 +1,9 @@
 package com.migration.servicelayer.model;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
@@ -14,6 +16,8 @@ import java.util.Map;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Document(collection = "schema_mapping_rules")
 @CompoundIndexes({
         @CompoundIndex(
