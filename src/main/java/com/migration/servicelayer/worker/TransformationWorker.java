@@ -84,7 +84,7 @@ public class TransformationWorker {
             );
         }
 
-        updateQueuedAndProcessedBronze(message);
+        updateQueuedAndProcessedBronze(message.bronzeDocuments());
 
         log.info(
                 "Batch concluído: {} inseridos na '{}', {} erros.",
@@ -364,8 +364,8 @@ public class TransformationWorker {
         return values;
     }
 
-    private void updateQueuedAndProcessedBronze(TransformationBatchMessage message) {
-        List<String> bronzeIds = message.bronzeDocuments().stream().map(BronzeDocument::getId).toList();
+    private void updateQueuedAndProcessedBronze(List<BronzeDocument> bronzeDocuments) {
+        List<String> bronzeIds = bronzeDocuments.stream().map(BronzeDocument::getId).toList();
         mongoTemplate.updateMulti(
                 query(where("_id").in(bronzeIds)),
                 new Update().set("processed", true).set("queued", false),
