@@ -265,7 +265,7 @@ public class TransformationWorker {
         Query query = query(
                 where("tenantId").is(tenantId)
                 .and("eventType").is(eventType)
-                .and("primaryKeyHash").in(primaryKeyHashes)
+                .and("primaryKeyHash").in(primaryKeyHashes).type(2)
         );
         query.fields().include("primaryKeyHash");
 

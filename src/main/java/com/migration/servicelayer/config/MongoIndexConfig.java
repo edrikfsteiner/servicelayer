@@ -16,7 +16,7 @@ public class MongoIndexConfig {
     @Bean
     public ApplicationRunner ensureSilverIndexes(MongoTemplate mongoTemplate) {
         return args -> {
-            Index index = new Index()
+            Index silverPrimaryKeyIndex = new Index()
                     .on("tenantId", Sort.Direction.ASC)
                     .on("eventType", Sort.Direction.ASC)
                     .on("primaryKeyHash", Sort.Direction.ASC)
@@ -24,7 +24,15 @@ public class MongoIndexConfig {
                     .partial(PartialIndexFilter.of(Criteria.where("primaryKeyHash").type(2)))
                     .named("silver_tenant_event_primary_key_hash_unique");
 
-            mongoTemplate.indexOps(SilverDocument.class).createIndex(index);
+            Index bronzePendingIndex = new Index()
+                    .on("tenantId", Sort.Direction.ASC)
+                    .on("eventType", Sort.Direction.ASC)
+                    .on("processed", Sort.Direction.ASC)
+                    .on("queued", Sort.Direction.ASC)
+                    .named("bronze_tenant_event_pending_idx");
+
+            mongoTemplate.indexOps(SilverDocument.class).createIndex(silverPrimaryKeyIndex);
+            mongoTemplate.indexOps("bronze").createIndex(bronzePendingIndex);
         };
     }
 }

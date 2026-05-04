@@ -15,15 +15,25 @@ docker logs -f rabbitmq
 docker logs -f mongodb
 ```
 
-## Criar indice obrigatorio da Silver
+## Indices que devem ser criados
 
-Depois de subir o MongoDB e antes de rodar uma transformacao grande, crie o indice unico da camada Silver:
+Depois de subir o MongoDB e antes de rodar uma ingestao ou transformacao grande, garanta os indices principais.
+
+Indice para buscar rapidamente os documentos pendentes na Bronze:
+
+```powershell
+docker exec mongodb mongosh "mongodb://root:root@localhost:27017/lakehouse_db?authSource=admin" --quiet --eval "db.bronze.createIndex({ tenantId: 1, eventType: 1, processed: 1, queued: 1 }, { name: 'bronze_tenant_event_pending_idx' })"
+```
+
+Indice unico da camada Silver:
 
 ```powershell
 docker exec mongodb mongosh "mongodb://root:root@localhost:27017/lakehouse_db?authSource=admin" --quiet --eval "db.silver.createIndex({ tenantId: 1, eventType: 1, primaryKeyHash: 1 }, { unique: true, name: 'silver_tenant_event_primary_key_hash_unique', partialFilterExpression: { primaryKeyHash: { `$type: 'string' } } })"
 ```
 
-Esse indice garante a idempotencia da Silver por `tenantId + eventType + primaryKeyHash` e evita duplicidade real quando o mesmo registro for reprocessado.
+O indice da Bronze acelera a busca por documentos com `processed=false` e `queued=false` para um `tenantId` e `eventType`.
+
+O indice da Silver garante a idempotencia por `tenantId + eventType + primaryKeyHash` e evita duplicidade real quando o mesmo registro for reprocessado.
 
 ## Limpar tudo e iniciar do zero
 
@@ -68,6 +78,18 @@ Parar a API:
 
 ```powershell
 wsl -d Ubuntu -u root -e systemctl stop servicelayer-final.service
+```
+
+Reiniciar a API:
+
+```powershell
+wsl -d Ubuntu -u root -e systemctl restart servicelayer-final.service
+```
+
+Forçar a parar a API:
+
+```powershell
+wsl -d Ubuntu -u root -e sh -lc "systemctl reset-failed servicelayer-final.service"
 ```
 
 ## Subir a API no Linux
