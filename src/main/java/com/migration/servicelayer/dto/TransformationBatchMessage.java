@@ -1,11 +1,11 @@
 package com.migration.servicelayer.dto;
 
 import com.migration.servicelayer.model.BronzeDocument;
+import com.migration.servicelayer.model.SchemaMappingRules;
 
 import java.util.List;
 
 public record TransformationBatchMessage(
-        String tenantId,
-        String eventType,
+        SchemaMappingRules schema,
         List<BronzeDocument> bronzeDocuments
 ) {}

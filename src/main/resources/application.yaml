@@ -13,14 +13,18 @@ spring:
     password: admin
     listener:
       simple:
-        concurrency: 1
-        max-concurrency: 50
-        prefetch: 100
+        concurrency: 2
+        max-concurrency: 2
+        prefetch: 1
+        retry:
+          enabled: true
+          max-attempts: 3
+          stateless: true
 
 app:
   security:
     jwt:
-      secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef}
+      secret: 0123456789abcdefghij
       expiration-time: 3600
       issuer: lakehouse-api
 

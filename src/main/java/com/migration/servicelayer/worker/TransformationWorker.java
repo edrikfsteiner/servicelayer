@@ -4,26 +4,36 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.migration.servicelayer.dto.TransformationBatchMessage;
+import com.migration.servicelayer.exception.SchemaValidationException;
 import com.migration.servicelayer.model.BronzeDocument;
 import com.migration.servicelayer.model.SchemaMappingRules;
+import com.migration.servicelayer.model.SchemaProperties;
 import com.migration.servicelayer.model.SilverDocument;
+import com.migration.servicelayer.model.TransformationError;
+import com.migration.servicelayer.model.TransformType;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
-import jakarta.validation.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.data.mongodb.core.BulkOperations;
+import org.springframework.data.mongodb.core.BulkOperations.BulkMode;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HexFormat;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,11 +49,6 @@ public class TransformationWorker {
 
     private static final String BRONZE = "bronze";
     private static final String SILVER = "silver";
-    private static final String PROPERTIES = "properties";
-    private static final String DEFAULT_VALUE = "default-value";
-    private static final String RENAME_TO = "x-rename-to";
-    private static final String TRANSFORM = "x-transform";
-    private static final String PRIMARY_KEY = "x-primary-key";
 
     private final MongoTemplate mongoTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -51,55 +56,68 @@ public class TransformationWorker {
 
     @RabbitListener(queues = "${app.messaging.queue-transformation}")
     public void processTransformationBatch(TransformationBatchMessage message) {
+        SchemaMappingRules schema = message.schema();
+        JsonSchema jsonSchemaFields = schemaFactory.getSchema(objectMapper.valueToTree(schema.getFields()));
+        List<SilverDocument> silverDocuments = new ArrayList<>();
+        List<TransformationError> transformationErrors = new ArrayList<>();
+
         log.info(
                 "Recebido lote para tenant='{}', eventType='{}' com {} registros.",
-                message.tenantId(), message.eventType(), message.bronzeDocuments().size()
+                schema.getTenantId(), schema.getEventType(), message.bronzeDocuments().size()
         );
 
-        Query schemaQuery = query(
-                where("tenantId").is(message.tenantId())
-                .and("eventType").is(message.eventType())
+        message.bronzeDocuments().forEach(bronzeDocument ->
+                processToSilver(bronzeDocument, jsonSchemaFields, schema, silverDocuments, transformationErrors)
         );
-
-        SchemaMappingRules schema = mongoTemplate.findOne(schemaQuery, SchemaMappingRules.class);
-        if (schema == null) {
-            log.error("Schema não encontrado para tenant='{}' e eventType='{}'. Abortando batch.", message.tenantId(), message.eventType());
-            return;
-        }
-
-        List<SilverDocument> silverDocuments = message.bronzeDocuments().stream()
-                .map(document -> toSilver(document, schema))
-                .toList();
 
         if (hasPrimaryKey(schema.getFields())) {
-            silverDocuments.forEach(silverDocument -> upsertSilver(silverDocument, schema));
+            saveSilverWithPrimaryKey(silverDocuments, schema);
         } else {
-            mongoTemplate.insert(silverDocuments);
+            mongoTemplate.insert(silverDocuments, SilverDocument.class);
         }
 
-        List<String> bronzeIds = message.bronzeDocuments().stream().map(BronzeDocument::getId).toList();
-        mongoTemplate.updateMulti(
-                query(where("_id").in(bronzeIds)),
-                new Update().set("processed", true).set("queued", false),
-                BRONZE
-        );
+        if (!transformationErrors.isEmpty()) {
+            mongoTemplate.insert(transformationErrors, TransformationError.class);
+            log.warn(
+                    "Lote parcialmente validado: {} registros processados com falha de esquema e enviados para quarentena.",
+                    transformationErrors.size()
+            );
+        }
 
-        log.debug("Batch concluído com sucesso: {} registros inseridos em '{}'.", silverDocuments.size(), SILVER);
+        updateQueuedAndProcessedBronze(message.bronzeDocuments());
+
+        log.info(
+                "Batch concluído: {} inseridos na '{}', {} erros.",
+                silverDocuments.size(), SILVER, transformationErrors.size()
+        );
     }
 
-    private SilverDocument toSilver(BronzeDocument bronzeDocument, SchemaMappingRules schema) {
-        JsonNode bronzePayload = objectMapper.valueToTree(bronzeDocument.getPayload());
-        JsonSchema fields = schemaFactory.getSchema(objectMapper.valueToTree(schema.getFields()));
-
-        Set<ValidationMessage> errors = fields.validate(bronzePayload);
-        if (!errors.isEmpty()) {
-            throw new ValidationException(String.format(
-                    "Payload inválido para tratamento. bronzeId = %s, errors: %s", bronzeDocument.getId(), errors
-            ));
+    private void processToSilver(BronzeDocument bronzeDocument, JsonSchema jsonSchemaFields, SchemaMappingRules schema, List<SilverDocument> silverDocuments, List<TransformationError> transformationErrors) {
+        try {
+            JsonNode bronzePayload = objectMapper.valueToTree(bronzeDocument.getPayload());
+            validateSchema(jsonSchemaFields, bronzePayload);
+            Map<String, Object> data = applySchemaRules(bronzePayload, schema.getFields());
+            silverDocuments.add(toSilver(bronzeDocument, data));
+        } catch (SchemaValidationException e) {
+            transformationErrors.add(TransformationError.builder()
+                    .bronzeId(bronzeDocument.getId())
+                    .tenantId(schema.getTenantId())
+                    .eventType(schema.getEventType())
+                    .processedAt(LocalDateTime.now())
+                    .errors(e.getValidationErrors())
+                    .build()
+            );
         }
+    }
 
-        Map<String, Object> data = applySchemaRules(bronzePayload, schema.getFields());
+    private void validateSchema(JsonSchema schemaFields, JsonNode bronzePayload) {
+        Set<ValidationMessage> errors = schemaFields.validate(bronzePayload);
+        if (!errors.isEmpty()) {
+            throw new SchemaValidationException("Payload inválido para tratamento.", errors);
+        }
+    }
 
+    private SilverDocument toSilver(BronzeDocument bronzeDocument, Map<String, Object> data) {
         return SilverDocument.builder()
                 .bronzeId(bronzeDocument.getId())
                 .tenantId(bronzeDocument.getTenantId())
@@ -115,7 +133,7 @@ public class TransformationWorker {
             payload = new HashMap<>();
         }
 
-        Map<String, Object> properties = asMapStringObject(fields.get(PROPERTIES));
+        Map<String, Object> properties = asMapStringObject(fields.get(SchemaProperties.PROPERTIES.getValue()));
         if (properties == null) {
             return payload;
         }
@@ -128,13 +146,13 @@ public class TransformationWorker {
             }
 
             boolean hasValue = payload.containsKey(sourceField);
-            boolean hasDefaultValue = fieldConfig.containsKey(DEFAULT_VALUE);
+            boolean hasDefaultValue = fieldConfig.containsKey(SchemaProperties.DEFAULT_VALUE.getValue());
             if (!hasValue && !hasDefaultValue) {
                 continue;
             }
 
-            Object value = hasValue ? payload.get(sourceField) : fieldConfig.get(DEFAULT_VALUE);
-            value = applyTransforms(value, fieldConfig.get(TRANSFORM));
+            Object value = hasValue ? payload.get(sourceField) : fieldConfig.get(SchemaProperties.DEFAULT_VALUE.getValue());
+            value = applyTransforms(value, fieldConfig.get(SchemaProperties.TRANSFORM.getValue()));
 
             String targetField = targetFieldName(sourceField, fieldConfig);
             if (!targetField.equals(sourceField)) {
@@ -161,7 +179,9 @@ public class TransformationWorker {
 
         if (transforms instanceof Iterable<?> iterable) {
             Object transformed = value;
-            iterable.forEach(transform -> applyTransform(transformed, transform));
+            for (Object transform : iterable) {
+                transformed = applyTransform(transformed, transform);
+            }
             return transformed;
         }
 
@@ -173,47 +193,140 @@ public class TransformationWorker {
             return value;
         }
 
-        String transformName = transform.toString().trim().toLowerCase();
-        return switch (transformName) {
-            case "uppercase" -> value.toString().toUpperCase();
-            case "lowercase" -> value.toString().toLowerCase();
-            case "trim" -> value.toString().trim();
-            default -> value;
+        TransformType transformType = TransformType.valueOf(transform.toString().trim().toLowerCase());
+        return switch (transformType) {
+            case UPPERCASE -> value.toString().toUpperCase();
+            case LOWERCASE -> value.toString().toLowerCase();
+            case TRIM -> value.toString().trim();
         };
     }
 
     private String targetFieldName(String sourceField, Map<String, Object> fieldConfig) {
-        Object renameTo = fieldConfig.get(RENAME_TO);
+        Object renameTo = fieldConfig.get(SchemaProperties.RENAME_TO.getValue());
         if (renameTo instanceof String targetField && !targetField.isBlank()) {
             return targetField.trim();
         }
         return sourceField;
     }
 
-    private void upsertSilver(SilverDocument silverDocument, SchemaMappingRules schema) {
-        Map<String, Object> primaryKeyValues = primaryKeyValues(silverDocument.getData(), schema.getFields());
-        if (primaryKeyValues.isEmpty()) {
-            log.warn(
-                    "Registro bronzeId='{}' sem valor de primary key para tenant='{}', eventType='{}'.",
-                    silverDocument.getBronzeId(), silverDocument.getTenantId(), silverDocument.getEventType()
-            );
-            mongoTemplate.insert(silverDocument);
+    private void saveSilverWithPrimaryKey(List<SilverDocument> silverDocuments, SchemaMappingRules schema) {
+        if (silverDocuments.isEmpty()) {
             return;
         }
 
-        Criteria criteria =
-                where("tenantId").is(silverDocument.getTenantId())
-                .and("eventType").is(silverDocument.getEventType());
-        primaryKeyValues.forEach((fieldName, value) -> criteria.and("data." + fieldName).is(value));
+        Map<String, SilverDocument> documentsByHash = new LinkedHashMap<>();
+        List<SilverDocument> documentsWithoutPrimaryKey = new ArrayList<>();
 
-        Update update = new Update()
+        for (SilverDocument silverDocument : silverDocuments) {
+            Map<String, Object> primaryKeyValues = primaryKeyValues(silverDocument.getData(), schema.getFields());
+            if (primaryKeyValues.isEmpty()) {
+                log.warn(
+                        "Registro bronzeId='{}' sem valor de primary key para tenant='{}', eventType='{}'.",
+                        silverDocument.getBronzeId(), silverDocument.getTenantId(), silverDocument.getEventType()
+                );
+                documentsWithoutPrimaryKey.add(silverDocument);
+                continue;
+            }
+
+            String primaryKeyHash = primaryKeyHash(primaryKeyValues);
+            silverDocument.setPrimaryKeyHash(primaryKeyHash);
+            documentsByHash.put(primaryKeyHash, silverDocument);
+        }
+
+        if (!documentsWithoutPrimaryKey.isEmpty()) {
+            mongoTemplate.insert(documentsWithoutPrimaryKey, SilverDocument.class);
+        }
+
+        if (documentsByHash.isEmpty()) {
+            return;
+        }
+
+        Set<String> existingHashes = existingPrimaryKeyHashes(
+                schema.getTenantId(),
+                schema.getEventType(),
+                documentsByHash.keySet()
+        );
+
+        List<SilverDocument> newDocuments = new ArrayList<>();
+        List<SilverDocument> existingDocuments = new ArrayList<>();
+        documentsByHash.forEach((primaryKeyHash, silverDocument) -> {
+            if (existingHashes.contains(primaryKeyHash)) {
+                existingDocuments.add(silverDocument);
+            } else {
+                newDocuments.add(silverDocument);
+            }
+        });
+
+        insertNewDocuments(newDocuments);
+        updateExistingDocuments(existingDocuments);
+    }
+
+    private Set<String> existingPrimaryKeyHashes(String tenantId, String eventType, Collection<String> primaryKeyHashes) {
+        Query query = query(
+                where("tenantId").is(tenantId)
+                .and("eventType").is(eventType)
+                .and("primaryKeyHash").in(primaryKeyHashes).type(2)
+        );
+        query.fields().include("primaryKeyHash");
+
+        Set<String> existingHashes = new HashSet<>();
+        mongoTemplate.find(query, SilverDocument.class).forEach(document ->
+                existingHashes.add(document.getPrimaryKeyHash())
+        );
+        return existingHashes;
+    }
+
+    private void insertNewDocuments(List<SilverDocument> documents) {
+        if (documents.isEmpty()) {
+            return;
+        }
+
+        mongoTemplate.insert(documents, SilverDocument.class);
+    }
+
+    private void updateExistingDocuments(List<SilverDocument> documents) {
+        if (documents.isEmpty()) {
+            return;
+        }
+
+        BulkOperations bulkOps = mongoTemplate.bulkOps(BulkMode.UNORDERED, SilverDocument.class);
+        documents.forEach(document ->
+                bulkOps.updateOne(silverQuery(document), silverUpdate(document))
+        );
+        bulkOps.execute();
+    }
+
+    private Query silverQuery(SilverDocument silverDocument) {
+        return query(
+                where("tenantId").is(silverDocument.getTenantId())
+                .and("eventType").is(silverDocument.getEventType())
+                .and("primaryKeyHash").is(silverDocument.getPrimaryKeyHash())
+        );
+    }
+
+    private Update silverUpdate(SilverDocument silverDocument) {
+        return new Update()
                 .set("bronzeId", silverDocument.getBronzeId())
-                .set("tenantId", silverDocument.getTenantId())
-                .set("eventType", silverDocument.getEventType())
                 .set("processedAt", silverDocument.getProcessedAt())
                 .set("data", silverDocument.getData());
+    }
 
-        mongoTemplate.upsert(query(criteria), update, SilverDocument.class);
+    private String primaryKeyHash(Map<String, Object> primaryKeyValues) {
+        StringBuilder source = new StringBuilder();
+        primaryKeyValues.forEach((fieldName, value) -> {
+            String text = String.valueOf(value);
+            source.append(fieldName.length()).append(':').append(fieldName)
+                    .append('=')
+                    .append(text.length()).append(':').append(text)
+                    .append(';');
+        });
+
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(source.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 indisponivel para primaryKeyHash", e);
+        }
     }
 
     boolean hasPrimaryKey(Map<String, Object> fields) {
@@ -221,7 +334,7 @@ public class TransformationWorker {
     }
 
     private List<String> primaryKeyFields(Map<String, Object> fields) {
-        Map<String, Object> properties = asMapStringObject(fields.get(PROPERTIES));
+        Map<String, Object> properties = asMapStringObject(fields.get(SchemaProperties.PROPERTIES.getValue()));
         if (properties == null) {
             return List.of();
         }
@@ -229,7 +342,7 @@ public class TransformationWorker {
         List<String> primaryKeyFields = new ArrayList<>();
         for (Map.Entry<String, Object> entry : properties.entrySet()) {
             Map<String, Object> fieldConfig = asMapStringObject(entry.getValue());
-            if (fieldConfig != null && Boolean.TRUE.equals(fieldConfig.get(PRIMARY_KEY))) {
+            if (fieldConfig != null && Boolean.TRUE.equals(fieldConfig.get(SchemaProperties.PRIMARY_KEY.getValue()))) {
                 primaryKeyFields.add(targetFieldName(entry.getKey(), fieldConfig));
             }
         }
@@ -249,5 +362,14 @@ public class TransformationWorker {
         }
 
         return values;
+    }
+
+    private void updateQueuedAndProcessedBronze(List<BronzeDocument> bronzeDocuments) {
+        List<String> bronzeIds = bronzeDocuments.stream().map(BronzeDocument::getId).toList();
+        mongoTemplate.updateMulti(
+                query(where("_id").in(bronzeIds)),
+                new Update().set("processed", true).set("queued", false),
+                BRONZE
+        );
     }
 }
