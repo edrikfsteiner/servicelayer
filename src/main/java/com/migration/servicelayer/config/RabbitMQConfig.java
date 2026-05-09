@@ -7,44 +7,73 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitMQConfig {
 
-    private static final String EXCHANGE_NAME = "migration.exchange";
-    private static final String MAIN_QUEUE = "migration.data.queue";
-    private static final String DLQ_QUEUE = "migration.data.dlq";
-    private static final String ROUTING_MAIN_KEY = "migration.routing.key";
-    private static final String ROUTING_KEY_DLQ = "migration.dlq.routing.key";
+    @Value("${app.messaging.exchange}")
+    private String exchangeName;
+
+    @Value("${app.messaging.queue-main}")
+    private String mainQueue;
+
+    @Value("${app.messaging.queue-dlq}")
+    private String dlqQueue;
+
+    @Value("${app.messaging.queue-transformation}")
+    private String transformationQueue;
+
+    @Value("${app.messaging.routing-key-main}")
+    private String mainRoutingKey;
+
+    @Value("${app.messaging.routing-key-dlq}")
+    private String dlqRoutingKey;
+
+    @Value("${app.messaging.routing-key-transformation}")
+    private String transformationRoutingKey;
 
     @Bean
     public Queue dlq() {
-        return QueueBuilder.durable(DLQ_QUEUE).build();
+        return QueueBuilder.durable(dlqQueue).build();
     }
 
     @Bean
     public Queue mainQueue() {
-        return QueueBuilder.durable(MAIN_QUEUE)
-                .withArgument("x-dead-letter-exchange", EXCHANGE_NAME)
-                .withArgument("x-dead-letter-routing-key", ROUTING_KEY_DLQ)
+        return QueueBuilder.durable(mainQueue)
+                .withArgument("x-dead-letter-exchange", exchangeName)
+                .withArgument("x-dead-letter-routing-key", dlqRoutingKey)
+                .build();
+    }
+
+    @Bean
+    public Queue transformationQueue() {
+        return QueueBuilder.durable(transformationQueue)
+                .withArgument("x-dead-letter-exchange", exchangeName)
+                .withArgument("x-dead-letter-routing-key", dlqRoutingKey)
                 .build();
     }
 
     @Bean
     public DirectExchange exchange() {
-        return new DirectExchange(EXCHANGE_NAME);
+        return new DirectExchange(exchangeName);
     }
 
     @Bean
     public Binding bindingMainQueue(Queue mainQueue, DirectExchange exchange) {
-        return BindingBuilder.bind(mainQueue).to(exchange).with(ROUTING_MAIN_KEY);
+        return BindingBuilder.bind(mainQueue).to(exchange).with(mainRoutingKey);
     }
 
     @Bean
     public Binding bindingDLQ(Queue dlq, DirectExchange exchange) {
-        return BindingBuilder.bind(dlq).to(exchange).with(ROUTING_KEY_DLQ);
+        return BindingBuilder.bind(dlq).to(exchange).with(dlqRoutingKey);
+    }
+
+    @Bean
+    public Binding bindingTransformationQueue(Queue transformationQueue, DirectExchange exchange) {
+        return BindingBuilder.bind(transformationQueue).to(exchange).with(transformationRoutingKey);
     }
 
     @Bean

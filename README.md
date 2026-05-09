@@ -1,257 +1,173 @@
-# Service Layer — Migração Massiva de Dados
 
-Serviço Spring Boot que migra dados de um banco MySQL (origem) para PostgreSQL (destino) de forma assíncrona via RabbitMQ, com mapeamento de esquema gerado por IA.
+## Subir infraestrutura
 
----
+Na pasta `servicelayer`:
 
-## Pré-requisitos
-
-| Ferramenta | Versão mínima |
-|:---|:---|
-| Java (JDK) | 25 |
-| Docker + Docker Compose | 20+ / v2 |
-| Maven | 3.9+ (ou use o wrapper `./mvnw`) |
-| Chave de API OpenAI | Necessária para o endpoint `/ai-map` |
-
----
-
-## 1. Subir a infraestrutura
-
-```bash
-docker compose up -d
+```powershell
+docker compose up -d rabbitmq-broker mongodb
 ```
 
-Isso inicia:
+Ver status:
 
-| Container | Porta | Credenciais |
-|:---|:---|:---|
-| MySQL 8.0 (origem) | 3306 | root / root |
-| PostgreSQL 16 (destino) | 5432 | postgres / password |
-| RabbitMQ 3 + Management | 5672 / 15672 | admin / admin123 |
-
-Verifique se estão rodando:
-
-```bash
+```powershell
 docker compose ps
+docker logs -f rabbitmq
+docker logs -f mongodb
 ```
 
----
+## Indices que devem ser criados
 
-## 2. Configurar banco de origem (MySQL)
+Depois de subir o MongoDB e antes de rodar uma ingestao ou transformacao grande, garanta os indices principais.
 
-Conecte no MySQL e crie a tabela de origem com os dados que deseja migrar.
+Indice para buscar rapidamente os documentos pendentes na Bronze:
 
-```bash
-docker exec -it origin-db mysql -uroot -proot origin_db
+```powershell
+docker exec mongodb mongosh "mongodb://root:root@localhost:27017/lakehouse_db?authSource=admin" --quiet --eval "db.bronze.createIndex({ tenantId: 1, eventType: 1, processed: 1, queued: 1 }, { name: 'bronze_tenant_event_pending_idx' })"
 ```
 
-Exemplo — criar e popular uma tabela `clientes`:
+Indice unico da camada Silver:
 
-```sql
-CREATE TABLE clientes (
-    id        INT AUTO_INCREMENT PRIMARY KEY,
-    nome      VARCHAR(100),
-    email     VARCHAR(100),
-    documento VARCHAR(20),
-    cidade    VARCHAR(50)
-);
-
-INSERT INTO clientes (nome, email, documento, cidade) VALUES
-('Ana Silva',    'ana@email.com',    '111.222.333-44', 'São Paulo'),
-('Bruno Costa',  'bruno@email.com',  '555.666.777-88', 'Rio de Janeiro'),
-('Carla Souza',  'carla@email.com',  '999.000.111-22', 'Curitiba');
+```powershell
+docker exec mongodb mongosh "mongodb://root:root@localhost:27017/lakehouse_db?authSource=admin" --quiet --eval "db.silver.createIndex({ tenantId: 1, eventType: 1, primaryKeyHash: 1 }, { unique: true, name: 'silver_tenant_event_primary_key_hash_unique', partialFilterExpression: { primaryKeyHash: { `$type: 'string' } } })"
 ```
 
----
+O indice da Bronze acelera a busca por documentos com `processed=false` e `queued=false` para um `tenantId` e `eventType`.
 
-## 3. Configurar banco de destino (PostgreSQL)
+O indice da Silver garante a idempotencia por `tenantId + eventType + primaryKeyHash` e evita duplicidade real quando o mesmo registro for reprocessado.
 
-Conecte no PostgreSQL e crie a tabela de destino com o esquema alvo.
+## Limpar tudo e iniciar do zero
 
-```bash
-docker exec -it target-db psql -U postgres -d target_db
+Reset completo:
+
+```powershell
+docker compose down
+docker compose up -d rabbitmq-broker mongodb
 ```
 
-Exemplo — tabela `customers`:
+Limpar apenas o banco:
 
-```sql
-CREATE TABLE customers (
-    id         SERIAL PRIMARY KEY,
-    full_name  VARCHAR(100),
-    email      VARCHAR(100),
-    cpf        VARCHAR(20),
-    city       VARCHAR(50)
-);
+```powershell
+docker exec mongodb mongosh "mongodb://root:root@localhost:27017/lakehouse_db?authSource=admin" --eval "db.dropDatabase()"
 ```
 
----
+Limpar apenas as collections principais:
 
-## 4. Configurar a chave da IA
-
-Exporte a variável de ambiente antes de iniciar a aplicação:
-
-```bash
-# Linux / macOS
-export OPENAI_API_KEY=sk-...
-
-# Windows PowerShell
-$env:OPENAI_API_KEY="sk-..."
+```powershell
+docker exec mongodb mongosh "mongodb://root:root@localhost:27017/lakehouse_db?authSource=admin" --eval "db.bronze.deleteMany({}); db.ingestion_protocols.deleteMany({}); db.api_clients.deleteMany({})"
 ```
 
----
+## Subir a API no WSL
 
-## 5. Executar a aplicação
+```powershell
+wsl -d Ubuntu -u root -e sh -lc "systemd-run --unit=servicelayer-final --property=WorkingDirectory=/mnt/c/Users/Pichau/OneDrive/Desktop/faculdade/TCC/servicelayer --setenv=HOME=/root --setenv=USER=root /bin/sh -lc './mvnw clean spring-boot:run > /tmp/servicelayer-final.log 2>&1'"
+```
+
+Ver status da API:
+
+```powershell
+wsl -d Ubuntu -u root -e systemctl status servicelayer-final.service
+```
+
+Ver logs da API:
+
+```powershell
+wsl -d Ubuntu -u root -e tail -f /tmp/servicelayer-final.log
+```
+
+Parar a API:
+
+```powershell
+wsl -d Ubuntu -u root -e systemctl stop servicelayer-final.service
+```
+
+Reiniciar a API:
+
+```powershell
+wsl -d Ubuntu -u root -e systemctl restart servicelayer-final.service
+```
+
+Forçar a parar a API:
+
+```powershell
+wsl -d Ubuntu -u root -e sh -lc "systemctl reset-failed servicelayer-final.service"
+```
+
+## Subir a API no Linux
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-No Windows:
+Para rodar em background e salvar logs:
+
+```bash
+./mvnw spring-boot:run > /tmp/servicelayer-final.log 2>&1 &
+```
+
+Parar a API:
+
+```bash
+kill %1
+```
+
+## Modo debug
+
+No WSL (background com debug):
 
 ```powershell
-.\mvnw.cmd spring-boot:run
+wsl -d Ubuntu -u root -e sh -lc "systemd-run --unit=servicelayer-final --property=WorkingDirectory=/mnt/c/Users/Pichau/OneDrive/Desktop/faculdade/TCC/servicelayer --setenv=HOME=/root --setenv=USER=root /bin/sh -lc './mvnw spring-boot:run -Dspring-boot.run.jvmArguments=\"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005\" > /tmp/servicelayer-final.log 2>&1'"
 ```
 
-A aplicação sobe na porta **8080**.
-
----
-
-## 6. Fluxo de uso (endpoints)
-
-### 6.1 Gerar mapeamento com IA
-
-Envia os esquemas de origem e destino para o LLM gerar o contrato JSON.
+No Linux (foreground com debug):
 
 ```bash
-curl -X POST "http://localhost:8080/api/migration/ai-map?targetTable=customers" \
+./mvnw spring-boot:run -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+```
+
+A porta `5005` fica acessivel do Windows normalmente (WSL2 faz a ponte de rede automaticamente).
+
+Para conectar no VS Code, adicione em `.vscode/launch.json`:
+
+```json
+{
+  "type": "java",
+  "request": "attach",
+  "name": "Attach to WSL",
+  "hostName": "localhost",
+  "port": 5005
+}
+```
+
+`suspend=n` — o app sobe sem esperar o debugger conectar.
+`suspend=y` — o app pausa ate voce conectar o debugger.
+
+## 1. Criar usuario cliente
+
+Use um `clientId` novo, por exemplo `cliente-demo`.
+
+```powershell
+curl.exe -X POST "http://localhost:8080/api/auth/register" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"clientId\":\"cliente-demo\",\"clientSecret\":\"senha123\",\"tenantId\":\"tenant_demo\"}"
+```
+
+## 2. Pedir o JWT
+
+```powershell
+curl.exe -X POST "http://localhost:8080/api/auth" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"clientId\":\"cliente-demo\",\"clientSecret\":\"senha123\"}"
+```
+
+## 3. Ingerir registros do dataset
+
+> Envie alguns registros individualmente ou em loop.
+
+```bash
+curl -s -X POST http://localhost:8080/api/ingest \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "originSchema": "clientes(id INT, nome VARCHAR, email VARCHAR, documento VARCHAR, cidade VARCHAR)",
-    "targetSchema": "customers(id SERIAL, full_name VARCHAR, email VARCHAR, cpf VARCHAR, city VARCHAR)"
-  }'
+  -H "X-Event-Type: " \
+  -d '{}'
 ```
-
-### 6.2 Consultar mapeamento salvo
-
-```bash
-curl http://localhost:8080/api/migration/mapping/customers
-```
-
-Resposta esperada:
-
-```json
-{
-  "id": "id",
-  "full_name": "nome",
-  "email": "email",
-  "cpf": "documento",
-  "city": "cidade"
-}
-```
-
-### 6.3 Iniciar a migração
-
-```bash
-curl -X POST http://localhost:8080/api/migration/start \
-  -H "Content-Type: application/json" \
-  -d '{
-    "originTable": "clientes",
-    "targetTable": "customers"
-  }'
-```
-
-Resposta:
-
-```json
-{
-  "message": "Migração iniciada de clientes para customers",
-  "protocolId": "e035cfe4-6638-41aa-8e4d-b3e50a9473c7"
-}
-```
-
-### 6.4 Consultar status por protocolo
-
-```bash
-curl http://localhost:8080/api/migration/status/{protocolId}
-```
-
-Resposta:
-
-```json
-{
-  "protocolId": "a1b2c3d4-...",
-  "originTable": "clientes",
-  "targetTable": "customers",
-  "totalRecords": 3,
-  "processedRecords": 3,
-  "failedRecords": 0,
-  "status": "COMPLETED",
-  "createdAt": "2026-03-21T10:00:00",
-  "updatedAt": "2026-03-21T10:00:05"
-}
-```
-
-### 6.5 DLQ — consultar falhas
-
-```bash
-curl http://localhost:8080/api/dlq/count
-```
-
-### 6.6 DLQ — reprocessar mensagens
-
-```bash
-curl -X POST http://localhost:8080/api/dlq/reprocess
-```
-
 ---
-
-## 7. Executar os testes
-
-```bash
-./mvnw test
-```
-
-70 testes unitários cobrindo controllers, services, consumer, repository e utilitários.
-
----
-
-## 8. Acessos úteis
-
-| Recurso | URL |
-|:---|:---|
-| API | http://localhost:8080 |
-| Swagger UI | http://localhost:8080/swagger-ui.html |
-| RabbitMQ Management | http://localhost:15672 |
-| Actuator | http://localhost:8080/actuator |
-
----
-
-## 9. Troubleshooting
-### Limpar filas do RabbitMQ
-
-Se mensagens antigas ficaram presas nas filas, limpe-as antes de executar uma nova migração:
-
-```bash
-curl -u admin:admin123 -X DELETE http://localhost:15672/api/queues/%2F/migration.data.queue/contents
-curl -u admin:admin123 -X DELETE http://localhost:15672/api/queues/%2F/migration.data.dlq/contents
-```
-
-### Limpar protocolos antigos do PostgreSQL
-```bash
-docker exec -it target-db psql -U postgres -d target_db -c "DELETE * FROM migration_protocol;"
-```
-
-### Limpar dados migrados para re-testar
-```bash
-docker exec -it target-db psql -U postgres -d target_db -c "TRUNCATE customers;"
-```
-
----
-
-## Stack
-
-- Java 25, Spring Boot 4.0.3, Spring AI 2.0.0-M2
-- RabbitMQ (mensageria + DLQ)
-- MySQL 8.0 (origem) / PostgreSQL 16 (destino)
-- Virtual Threads habilitadas
-- Lombok, Jackson, Springdoc OpenAPI

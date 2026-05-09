@@ -1,29 +1,4 @@
 services:
-  origin:
-    image: mysql:8.0
-    container_name: origin-db
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: origin_db
-    ports:
-      - "3306:3306"
-    volumes:
-      - origin_data:/var/lib/origin
-    restart: unless-stopped
-
-  target:
-    image: postgres:16-alpine
-    container_name: target-db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: target_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - target_data:/var/lib/target/data
-    restart: unless-stopped
-
   rabbitmq-broker:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq
@@ -32,9 +7,44 @@ services:
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin123
+      RABBITMQ_DEFAULT_PASS: admin
     restart: unless-stopped
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-volumes:
-  origin_data:
-  target_data:
+  mongodb:
+    image: mongo:8.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    image: app:latest
+    container_name: app
+    ports:
+      - "8080:8080"
+      - "8787:8787"
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq-broker
+      MONGODB_URI: mongodb://root:root@mongodb:27017/lakehouse_db?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8787"
+    depends_on:
+      rabbitmq-broker:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped

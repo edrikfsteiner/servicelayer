@@ -1,4 +1,7 @@
 spring:
+  mongodb:
+    uri: mongodb://root:root@mongodb:27017/lakehouse_db?authSource=admin
+
   threads:
     virtual:
       enabled: true
@@ -7,33 +10,37 @@ spring:
     host: localhost
     port: 5672
     username: admin
-    password: admin123
-
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY}
-      base-url: https://models.inference.ai.azure.com
-      chat:
-        completions-path: /chat/completions
-        options:
-          model: gpt-4o-mini
-          temperature: 0.0
+    password: admin
+    listener:
+      simple:
+        concurrency: 2
+        max-concurrency: 2
+        prefetch: 1
+        retry:
+          enabled: true
+          max-attempts: 3
+          stateless: true
 
 app:
-  datasource:
-    origin:
-      jdbc-url: jdbc:mysql://localhost:3306/origin_db
-      username: root
-      password: root
-      driver-class-name: com.mysql.cj.jdbc.Driver
+  security:
+    jwt:
+      secret: 0123456789abcdefghij
+      expiration-time: 3600
+      issuer: lakehouse-api
 
-    target:
-      jdbc-url: jdbc:postgresql://localhost:5432/target_db
-      username: postgres
-      password: password
-      driver-class-name: org.postgresql.Driver
+  messaging:
+    exchange: ingestion.exchange
+    queue-main: lakehouse.bronze.queue
+    queue-dlq: lakehouse.bronze.dlq
+    queue-transformation: lakehouse.silver.queue
+    routing-key-main: ingestion.routing.key
+    routing-key-dlq: ingestion.dlq.routing.key
+    routing-key-transformation: transformation.routing.key
 
-  jpa:
-    hibernate:
-      ddl-auto: none
-      show-sql: false
+  rate-limit:
+    capacity: 10000
+    minutes: 1
+
+  transformation:
+    scheduler:
+      cron: "0 0 0 * * *"
